@@ -249,6 +249,29 @@ namespace System.Web.OData.Routing
         }
 
         [Fact]
+        public void CanParseSwaggerMetadataUrl()
+        {
+            // Arrange
+            string odataPath = "$swagger";
+
+            // Act
+            DefaultODataPathHandler handler = new DefaultODataPathHandler();
+            handler.ResolverSetttings = new ODataUriResolverSetttings
+            {
+                SwaggerMetadata = true
+            };
+
+            ODataPath path = handler.Parse(_model, _serviceRoot, odataPath);
+            ODataPathSegment segment = path.Segments.Last();
+
+            // Assert
+            Assert.NotNull(path);
+            Assert.Null(path.NavigationSource);
+            Assert.Null(path.EdmType);
+            Assert.Equal("$swagger", segment.ToString());
+        }
+
+        [Fact]
         public void CanParseEntitySetUrl()
         {
             // Arrange

@@ -16,6 +16,8 @@ namespace System.Web.OData
 
         public bool AlternateKeys { get; set; }
 
+        public bool SwaggerMetadata { get; set; }
+
         public ODataUriResolver CreateResolver(IEdmModel model)
         {
             ODataUriResolver resolver;

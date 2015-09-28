@@ -34,6 +34,8 @@ namespace System.Web.OData.Extensions
 
         private const string ContinueOnErrorKey = "System.Web.OData.ContinueOnErrorKey";
 
+        private const string SwaggerMetdataKey = "System.Web.OData.SwaggerMetdata";
+
         /// <summary>
         /// Enables query support for actions with an <see cref="IQueryable" /> or <see cref="IQueryable{T}" /> return
         /// type. To avoid processing unexpected or malicious queries, use the validation settings on
@@ -232,6 +234,22 @@ namespace System.Web.OData.Extensions
 
             ODataUriResolverSetttings settings = configuration.GetResolverSettings();
             settings.AlternateKeys = alternateKeys;
+        }
+
+        /// <summary>
+        ///  Sets the $swagger support for the Uri parser on the configuration.
+        /// </summary>
+        /// <param name="configuration">The server configuration.</param>
+        /// <param name="swaggerMetadata"><c>true</c> to enable $swagger, <c>false</c> otherwise.</param>
+        public static void EnableSwaggerMetadata(this HttpConfiguration configuration, bool swaggerMetadata)
+        {
+            if (configuration == null)
+            {
+                throw Error.ArgumentNull("configuration");
+            }
+
+            ODataUriResolverSetttings settings = configuration.GetResolverSettings();
+            settings.SwaggerMetadata = swaggerMetadata;
         }
 
         /// <summary>

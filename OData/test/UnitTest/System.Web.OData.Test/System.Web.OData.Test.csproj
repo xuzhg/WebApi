@@ -138,12 +138,15 @@
     <Compile Include="OData\Builder\TestModels\SpecialOrderLine.cs" />
     <Compile Include="OData\ClrPropertyInfoAnnotationTest.cs" />
     <Compile Include="OData\DateTimeTest.cs" />
+    <Compile Include="OData\SwaggerControllerTest.cs" />
+    <Compile Include="OData\SwaggerModelTest.cs" />
     <Compile Include="OData\EdmEnumObjectCollectionTest.cs" />
     <Compile Include="OData\EdmEnumObjectTest.cs" />
     <Compile Include="OData\Formatter\ODataFunctionTests.cs" />
     <Compile Include="OData\EdmChangedObjectCollectionTest.cs" />
     <Compile Include="OData\EnableQueryTests.cs" />
     <Compile Include="OData\Formatter\Serialization\ODataDeltaFeedSerializerTests.cs" />
+    <Compile Include="OData\Formatter\Serialization\ODataSwaggerSerializerHelperTest.cs" />
     <Compile Include="OData\ODataContainmentTest.cs" />
     <Compile Include="OData\ContentIdHelpersTest.cs" />
     <Compile Include="OData\DollarFormatTest.cs" />
@@ -204,6 +207,8 @@
     <Compile Include="OData\Results\ResultHelpersTest.cs" />
     <Compile Include="OData\Results\UpdatedODataResultTest.cs" />
     <Compile Include="OData\Routing\AttributeRoutingOnSingletonTest.cs" />
+    <Compile Include="OData\Routing\Conventions\SwaggerRoutingConventionTest.cs" />
+    <Compile Include="OData\Routing\SwaggerPathSegmentTest.cs" />
     <Compile Include="OData\Routing\ODataPathSegmentTranslatorTest.cs" />
     <Compile Include="OData\Routing\ComplexCastPathSegmentTest.cs" />
     <Compile Include="OData\Routing\Conventions\DynamicPropertyPathSegmentTemplateTest.cs" />

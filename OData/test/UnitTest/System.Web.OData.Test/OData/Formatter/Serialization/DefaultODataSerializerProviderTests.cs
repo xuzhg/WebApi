@@ -135,6 +135,22 @@ namespace System.Web.OData.Formatter.Serialization
             Assert.Equal(ODataPayloadKind.Value, rawValueSerializer.ODataPayloadKind);
         }
 
+        [Fact]
+        public void GetODataSerializer_ReturnsSwaggerSerializer_ForSwaggerMetadata()
+        {
+            // Arrange
+            var serializerProvider = new DefaultODataSerializerProvider();
+            HttpRequestMessage request = new HttpRequestMessage();
+
+            // Act
+            var serializer = serializerProvider.GetODataPayloadSerializer(_edmModel, typeof(SwaggerModel), request);
+
+            // Assert
+            Assert.NotNull(serializer);
+            var swaggerSerializer = Assert.IsType<ODataSwaggerSerializer>(serializer);
+            Assert.Equal(swaggerSerializer.ODataPayloadKind, ODataPayloadKind.MetadataDocument);
+        }
+
         [Theory]
         [InlineData("DollarCountEntities/$count", typeof(ODataCountTest.DollarCountEntity))]
         [InlineData("DollarCountEntities(5)/StringCollectionProp/$count", typeof(string))]

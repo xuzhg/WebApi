@@ -243,6 +243,47 @@ namespace System.Web.OData
         }
 
         [Fact]
+        public void SwaggerMetadata_FalseByDefault()
+        {
+            // Arrange
+            HttpConfiguration config = new HttpConfiguration();
+
+            // Act
+            ODataUriResolverSetttings resolverSetttings = config.GetResolverSettings();
+
+            // Assert
+            Assert.False(resolverSetttings.SwaggerMetadata);
+        }
+
+        [Fact]
+        public void EnableSwaggerMetadata_Sets_SwaggerMetadataFlag()
+        {
+            // Arrange
+            HttpConfiguration config = new HttpConfiguration();
+
+            // Act
+            config.EnableSwaggerMetadata(true);
+            ODataUriResolverSetttings resolverSetttings = config.GetResolverSettings();
+
+            // Assert
+            Assert.True(resolverSetttings.SwaggerMetadata);
+        }
+
+        [Fact]
+        public void EnableSwaggerMetadata_SetsFalse_SwaggerMetadataFlag()
+        {
+            // Arrange
+            HttpConfiguration config = new HttpConfiguration();
+
+            // Act
+            config.EnableSwaggerMetadata(false);
+            ODataUriResolverSetttings resolverSetttings = config.GetResolverSettings();
+
+            // Assert
+            Assert.False(resolverSetttings.SwaggerMetadata);
+        }
+
+        [Fact]
         public void EnableAlternateKeys_Sets_ContinueOnErrorKeyFlag()
         {
             // Arrange

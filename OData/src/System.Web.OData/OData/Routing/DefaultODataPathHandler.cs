@@ -118,6 +118,11 @@ namespace System.Web.OData.Routing
             Uri fullUri = null;
             NameValueCollection queryString = null;
 
+            if (IsSwaggerMetadataUri(odataPath, resolverSettings))
+            {
+                return new ODataPath(new SwaggerPathSegment());
+            }
+
             if (enableUriTemplateParsing)
             {
                 uriParser = new ODataUriParser(model, new Uri(odataPath, UriKind.Relative));
@@ -284,6 +289,27 @@ namespace System.Web.OData.Routing
                     }
                 }
             }
+        }
+
+        private static bool IsSwaggerMetadataUri(string odataPath, ODataUriResolverSetttings resolverSettings)
+        {
+            if (resolverSettings.SwaggerMetadata)
+            {
+                string unescapeODataPath = Uri.UnescapeDataString(odataPath);
+                if (resolverSettings.CaseInsensitive)
+                {
+                    if (String.Compare(unescapeODataPath, ODataSegmentKinds.Swagger, StringComparison.OrdinalIgnoreCase) == 0)
+                    {
+                        return true;
+                    }
+                }
+                else if (unescapeODataPath == ODataSegmentKinds.Swagger)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
     }
 }

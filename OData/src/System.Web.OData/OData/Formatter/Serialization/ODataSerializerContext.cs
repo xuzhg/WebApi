@@ -2,6 +2,7 @@
 // Licensed under the MIT License.  See License.txt in the project root for license information.
 
 using System.Collections.Generic;
+using System.IO;
 using System.Net.Http;
 using System.Web.Http;
 using System.Web.Http.Controllers;
@@ -126,6 +127,8 @@ namespace System.Web.OData.Formatter.Serialization
         /// Gets or sets the navigation property being expanded.
         /// </summary>
         public IEdmNavigationProperty NavigationProperty { get; set; }
+
+        internal Stream Stream { get; set; }
 
         /// <summary>
         /// Gets a property bag associated with this context to store any generic data.

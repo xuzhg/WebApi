@@ -11,6 +11,7 @@ using System.Web.OData.Extensions;
 using System.Web.OData.Routing;
 using System.Web.OData.TestCommon.Models;
 using Microsoft.OData.Edm;
+using Microsoft.OData.Edm.Library;
 using Microsoft.TestCommon;
 using Newtonsoft.Json.Linq;
 
@@ -103,6 +104,58 @@ namespace System.Web.OData
 
             config.MapODataServiceRoute("odata", "odata", model);
             return config;
+        }
+
+        [Fact]
+        public void DefaultResolver_DoesnotWork_SwaggerMetadata()
+        {
+            // Arrange
+            IEdmModel model = new EdmModel();
+            HttpConfiguration config = new[] { typeof(SwaggerController) }.GetHttpConfiguration();
+            config.MapODataServiceRoute("odata", "odata", model);
+            HttpClient client = new HttpClient(new HttpServer(config));
+
+            // Act
+            HttpResponseMessage response = client.GetAsync("http://localhost/odata/$swagger").Result;
+
+            // Assert
+            Assert.False(response.IsSuccessStatusCode);
+            Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        }
+
+        [Fact]
+        public void ExtensionResolver_Works_SwaggerMetadata()
+        {
+            // Arrange
+            IEdmModel model = new EdmModel();
+            HttpConfiguration config = new[] { typeof(SwaggerController) }.GetHttpConfiguration();
+            config.EnableSwaggerMetadata(true);
+            config.MapODataServiceRoute("odata", "odata", model);
+            HttpClient client = new HttpClient(new HttpServer(config));
+
+            // Act
+            HttpResponseMessage response = client.GetAsync("http://localhost/odata/$swagger").Result;
+
+            // Assert
+            response.EnsureSuccessStatusCode();
+        }
+
+        [Fact]
+        public void ExtensionResolver_Works_SwaggerMetadataWithCaseInsensitive()
+        {
+            // Arrange
+            IEdmModel model = new EdmModel();
+            HttpConfiguration config = new[] { typeof(SwaggerController) }.GetHttpConfiguration();
+            config.EnableSwaggerMetadata(true);
+            config.EnableCaseInsensitive(true);
+            config.MapODataServiceRoute("odata", "odata", model);
+            HttpClient client = new HttpClient(new HttpServer(config));
+
+            // Act
+            HttpResponseMessage response = client.GetAsync("http://localhost/odata/$sWagGer").Result;
+
+            // Assert
+            response.EnsureSuccessStatusCode();
         }
 
         public static TheoryDataSet<string, string> QueryOptionCaseInsensitiveCases

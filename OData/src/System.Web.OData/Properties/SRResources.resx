@@ -468,6 +468,9 @@
   <data name="EntitySetMissingDuringSerialization" xml:space="preserve">
     <value>The related entity set could not be found from the OData path. The related entity set is required to serialize the payload.</value>
   </data>
+  <data name="SwaggerModelMissingDuringSerialization" xml:space="preserve">
+    <value>The swagger model could not be found. The related swagger model is required to serialize the payload.</value>
+  </data>
   <data name="UnableToDetermineMetadataUrl" xml:space="preserve">
     <value>The ODataMediaTypeFormatter must be able to determine the metadata URL for a request in order to serialize the response.</value>
   </data>

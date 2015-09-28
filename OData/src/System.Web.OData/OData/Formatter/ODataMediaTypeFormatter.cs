@@ -541,7 +541,8 @@ namespace System.Web.OData.Formatter
                     SkipExpensiveAvailabilityChecks = serializer.ODataPayloadKind == ODataPayloadKind.Feed,
                     Path = path,
                     MetadataLevel = ODataMediaTypes.GetMetadataLevel(contentType),
-                    SelectExpandClause = Request.ODataProperties().SelectExpandClause
+                    SelectExpandClause = Request.ODataProperties().SelectExpandClause,
+                    Stream = writeStream
                 };
 
                 serializer.WriteObject(value, type, messageWriter, writeContext);
