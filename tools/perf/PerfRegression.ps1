@@ -197,7 +197,7 @@ Execute $TestBitsPath $TestRunId
 $TestResult = $TestBitsPath + "\bin\" + $TestRunId + ".analysisResult.xml"
 
 # Step 3. Run the base tests
-Execute $BaseBitsPath $TestType $TestRunId
+Execute $BaseBitsPath $TestRunId
 $BaseResult = $BaseBitsPath + "\bin\" + $TestRunId + ".analysisResult.xml"
 
 <#
