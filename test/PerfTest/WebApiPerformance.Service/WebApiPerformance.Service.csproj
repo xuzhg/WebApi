@@ -143,18 +143,7 @@
           <AutoAssignPort>True</AutoAssignPort>
           <DevelopmentServerPort>1163</DevelopmentServerPort>
           <DevelopmentServerVPath>/</DevelopmentServerVPath>
-          <Choose>
-            <When Condition=" '$(TestType)'=='Private' ">
-              <ItemGroup>
-                <IISUrl>http://localhost:1163/</IISUrl>
-              </ItemGroup>
-            </When>
-            <When Condition=" '$(TestType)'=='Official' ">
-              <ItemGroup>
-                <IISUrl>http://localhost:1164/</IISUrl>
-              </ItemGroup>
-            </When>
-          </Choose>
+          <IISUrl>http://localhost:1164/</IISUrl>
           <NTLMAuthentication>False</NTLMAuthentication>
           <UseCustomServer>False</UseCustomServer>
           <CustomServerUrl>

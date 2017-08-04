@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 2013
-VisualStudioVersion = 12.0.40629.0
+# Visual Studio 14
+VisualStudioVersion = 14.0.25420.1
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WebApiPerformance.Service", "..\test\PerfTest\WebApiPerformance.Service\WebApiPerformance.Service.csproj", "{F7B5A5D5-0B2F-493B-94B2-039B881FD4D3}"
 EndProject
@@ -25,12 +25,6 @@ Global
 		{F7B5A5D5-0B2F-493B-94B2-039B881FD4D3}.Debug|Any CPU.Build.0 = Release|Any CPU
 		{F7B5A5D5-0B2F-493B-94B2-039B881FD4D3}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{F7B5A5D5-0B2F-493B-94B2-039B881FD4D3}.Release|Any CPU.Build.0 = Release|Any CPU
-		{D23E28F1-CCD0-43E0-8C0D-36731EC91318}.CodeAnalysis|Any CPU.ActiveCfg = CodeAnalysis|Any CPU
-		{D23E28F1-CCD0-43E0-8C0D-36731EC91318}.CodeAnalysis|Any CPU.Build.0 = CodeAnalysis|Any CPU
-		{D23E28F1-CCD0-43E0-8C0D-36731EC91318}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{D23E28F1-CCD0-43E0-8C0D-36731EC91318}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{D23E28F1-CCD0-43E0-8C0D-36731EC91318}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{D23E28F1-CCD0-43E0-8C0D-36731EC91318}.Release|Any CPU.Build.0 = Release|Any CPU
 		{5C4C506B-9BFE-429D-A48C-77CEC613877A}.CodeAnalysis|Any CPU.ActiveCfg = Release|Any CPU
 		{5C4C506B-9BFE-429D-A48C-77CEC613877A}.CodeAnalysis|Any CPU.Build.0 = Release|Any CPU
 		{5C4C506B-9BFE-429D-A48C-77CEC613877A}.Debug|Any CPU.ActiveCfg = Release|Any CPU
