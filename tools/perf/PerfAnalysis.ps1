@@ -195,12 +195,12 @@ $TestRunId = "WebApiOData." + $RunDate + "." + $BuildId
 # Step 2. Run the current tests
 Execute $TestBitsPath $TestRunId
 $TestResult = $TestBitsPath + "\bin\" + $TestRunId + ".analysisResult.xml"
-Move-Item -Path $TestResult -Destination $TestBitsPath\test.xml -Force
+Move-Item -Path $TestResult -Destination ($TestBitsPath + "/test.xml") -Force
 
 # Step 3. Run the base tests
 Execute $BaseBitsPath $TestRunId
 $BaseResult = $BaseBitsPath + "\bin\" + $TestRunId + ".analysisResult.xml"
-Move-Item -Path $BaseResult -Destination $BaseBitsPath\base.xml -Force
+Move-Item -Path $BaseResult -Destination ($BaseBitsPath + "/base.xml") -Force
 
 <#
 $old_ErrorActionPreference = $ErrorActionPreference
