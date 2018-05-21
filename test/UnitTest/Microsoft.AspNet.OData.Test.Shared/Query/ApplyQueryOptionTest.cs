@@ -664,6 +664,87 @@ namespace Microsoft.AspNet.OData.Test.Query
             }
         }
 
+        public class TestCustomer
+        {
+            public static IList<TestCustomer> Customers
+            {
+                get
+                {
+                    TestCustomer customer1 = new TestCustomer
+                    {
+                        ID = 42,
+                        Name = "Name",
+                        DimDateMonth = new ApplyDateMonth
+                        {
+                            YearNumber = 1999
+                        }
+                    };
+                    TestCustomer customer2 = new TestCustomer
+                    {
+                        ID = 13,
+                        Name = "Peter",
+                        DimDateMonth = new ApplyDateMonth
+                        {
+                            YearNumber = 2001
+                        }
+                    };
+                    return new[] { customer1, customer2 };
+                }
+            }
+
+            public int ID { get; set; }
+            public string Name { get; set; }
+            public ApplyDateMonth DimDateMonth { get; set; }
+        }
+        public class ApplyDateMonth
+        {
+            public int YearNumber { get; set; }
+        }
+
+        [Fact]
+        public void ApplyTo_Returns_Correct_Queryable2()
+        {
+            // Arrange
+            var builder = ODataConventionModelBuilderFactory.Create();
+            builder.EnableLowerCamelCase();
+            builder.EntitySet<TestCustomer>("TestCustomers");
+            var model = builder.GetEdmModel();
+            var context = new ODataQueryContext(model, typeof(TestCustomer)) { RequestContainer = new MockContainer() };
+
+            //string filter = @"groupby((dimDateMonth/yearNumber))&$orderby=dimDateMonth/yearNumber desc";
+            string filter = @"groupby((dimDateMonth/yearNumber))";
+            string orderby = "dimDateMonth/yearNumber desc";
+            var queryOptionParser = new ODataQueryOptionParser(
+                context.Model,
+                context.ElementType,
+                context.NavigationSource,
+                new Dictionary<string, string> { { "$apply", filter }, { "$orderby", orderby } });
+            var applyOption = new ApplyQueryOption(filter, context, queryOptionParser);
+            IEnumerable<TestCustomer> customers = TestCustomer.Customers;
+
+            // Act
+            IQueryable queryable = applyOption.ApplyTo(customers.AsQueryable(), new ODataQuerySettings { HandleNullPropagation = HandleNullPropagationOption.True });
+
+            // Assert
+            Assert.NotNull(queryable);
+            var actualCustomers = Assert.IsAssignableFrom<IEnumerable<DynamicTypeWrapper>>(queryable).ToList();
+            /*
+            Assert.Equal(aggregation.Count(), actualCustomers.Count());
+
+            var aggEnum = actualCustomers.GetEnumerator();
+
+            foreach (var expected in aggregation)
+            {
+                aggEnum.MoveNext();
+                var agg = aggEnum.Current;
+                foreach (var key in expected.Keys)
+                {
+                    object value = GetValue(agg, key);
+                    Assert.Equal(expected[key], value);
+                }
+            }*/
+        }
+
         [Theory]
         [MemberData(nameof(CustomerTestApplies))]
         public void ApplyTo_Returns_Correct_Queryable(string filter, List<Dictionary<string, object>> aggregation)

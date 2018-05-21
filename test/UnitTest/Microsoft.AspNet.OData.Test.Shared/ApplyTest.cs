@@ -7,6 +7,7 @@ using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Threading.Tasks;
+using Microsoft.AspNet.OData.Builder;
 using Microsoft.AspNet.OData.Extensions;
 using Microsoft.AspNet.OData.Test.Abstraction;
 using Microsoft.AspNet.OData.Test.Extensions;
@@ -28,6 +29,7 @@ namespace Microsoft.AspNet.OData.Test
             var server = TestServerFactory.Create(controllers, (config) =>
             {
                 var builder = ODataConventionModelBuilderFactory.Create(config);
+                builder.EnableLowerCamelCase();
                 builder.EntitySet<ApplyTestCustomer>("ApplyTestCustomers");
 
                 config.MapODataServiceRoute("odata", "odata", builder.GetEdmModel());
@@ -61,6 +63,38 @@ namespace Microsoft.AspNet.OData.Test
         {
             // Arrange
             string uri = "/api/?$apply=groupby((Name), aggregate($count as Cnt))";
+
+            // Act
+            HttpResponseMessage response = GetResponse(uri, AcceptJson);
+
+            // Assert
+            var content = await response.Content.ReadAsStringAsync();
+            JArray result = JArray.Parse(content);
+            Assert.Equal("Name", result[0]["Name"]);
+            Assert.Equal(3, result[0]["Cnt"]);
+        }
+
+        [Fact]
+        public async Task Apply_Works_WithNonODataJson3()
+        {
+            // Arrange
+            string uri = "/odata/ApplyTestCustomers?$apply=groupby((name), aggregate($count as Cnt))";
+
+            // Act
+            HttpResponseMessage response = GetResponse(uri, AcceptJson);
+
+            // Assert
+            var content = await response.Content.ReadAsStringAsync();
+            JArray result = JArray.Parse(content);
+            Assert.Equal("Name", result[0]["Name"]);
+            Assert.Equal(3, result[0]["Cnt"]);
+        }
+
+        [Fact]
+        public async Task Apply_Works_WithNonODataJson2()
+        {
+            // Arrange
+            string uri = "/odata/ApplyTestCustomers?$apply=groupby((dimDateMonth/yearNumber))&$orderby=dimDateMonth/yearNumber desc";
 
             // Act
             HttpResponseMessage response = GetResponse(uri, AcceptJson);
@@ -132,11 +166,17 @@ namespace Microsoft.AspNet.OData.Test
 
         public string Name { get; set; }
 
+        public ApplyDateMonth DimDateMonth { get; set; }
+
         public ApplyTestOrder[] Orders { get; set; }
 
         public ApplyTestCustomer PreviousCustomer { get; set; }
     }
 
+    public class ApplyDateMonth
+    {
+        public int YearNumber { get; set; }
+    }
 
     public class ApplyTestOrder
     {

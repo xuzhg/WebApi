@@ -734,6 +734,12 @@ namespace Microsoft.AspNet.OData.Query.Expressions
             {
                 return expression;
             }
+            /*
+            var entry = FlattenedPropertyContainer.FirstOrDefault(c => String.Equals(c.Key, propertyPath, StringComparison.OrdinalIgnoreCase));
+            if (entry.Key != null)
+            {
+                return entry.Value;
+            }*/
 
             throw new ODataException(Error.Format(SRResources.PropertyOrPathWasRemovedFromContext, propertyPath));
         }

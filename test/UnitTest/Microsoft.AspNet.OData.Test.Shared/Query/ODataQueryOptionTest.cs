@@ -704,6 +704,45 @@ namespace Microsoft.AspNet.OData.Test.Query
             Assert.Equal(queryExpression, expectedExpression);
         }
 
+
+
+        [Theory]
+        [InlineData(false, "$apply=groupby((DimDateMonth/YearNumber))&$orderby=DimDateMonth/YearNumber desc")]
+        [InlineData(true, "$apply=groupby((dimDateMonth/yearNumber))&$orderby=dimDateMonth/yearNumber desc")]
+        public void ApplyTo_DollarApplyAndOrderBy_LowerCamelCase(bool enableLowerCamelCase, string oDataQuery)
+        {
+            // Arrange
+            var builder = ODataConventionModelBuilderFactory.Create();
+            if (enableLowerCamelCase)
+            {
+                builder.EnableLowerCamelCase();
+            }
+            builder.EntitySet<TestCustomer>("TestCustomers");
+            var model = builder.GetEdmModel();
+
+            var message = RequestFactory.Create(HttpMethod.Get, "http://server/service/TestCustomers?" + oDataQuery);
+
+            var options = new ODataQueryOptions(new ODataQueryContext(model, typeof(TestCustomer)), message);
+
+            // Act
+            IQueryable finalQuery = options.ApplyTo(new TestCustomer[0].AsQueryable(), new ODataQuerySettings());
+
+            // Assert
+            Assert.NotNull(finalQuery);
+        }
+
+        public class TestCustomer
+        {
+            public int ID { get; set; }
+            public string Name { get; set; }
+            public ApplyDateMonth DimDateMonth { get; set; }
+        }
+
+        public class ApplyDateMonth
+        {
+            public int YearNumber { get; set; }
+        }
+
         [Fact]
         public void Validate_ThrowsValidationErrors_ForOrderBy()
         {
