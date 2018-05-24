@@ -5,11 +5,102 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using AspNetCoreODataSample.Web.Models;
+using Dynasource.Models;
+using Dynasource.Models.Constants;
 using Microsoft.AspNet.OData;
 using Microsoft.AspNetCore.Mvc;
 
 namespace AspNetCoreODataSample.Web.Controllers
 {
+    public class companiesController : ODataController
+    {
+        [EnableQuery]
+        public IActionResult Get()
+        {
+            company c = new company
+            {
+                id = Guid.NewGuid(),
+                company_size = new company_size { Id = Guid.NewGuid() },
+                locations = new List<location>
+                {
+                    new location
+                    {
+                        id = Guid.NewGuid(),
+                        location_type = new location_type
+                        {
+                            Id = Guid.NewGuid()
+                        }
+                    }
+                }
+            };
+
+            return Ok(new company[] { c });
+        }
+
+        [EnableQuery(MaxExpansionDepth = 4)]
+        public IActionResult Get([FromODataUri]Guid key)
+        {
+            company c = new company
+            {
+                id = key,
+                company_size = new company_size { Id = Guid.NewGuid() },
+                locations = new List<location>
+                {
+                    new location
+                    {
+                        id = Guid.NewGuid(),
+                        location_type = new location_type
+                        {
+                            Id = Guid.NewGuid()
+                        }
+                    }
+                },
+                experts = new List<expert_summary>
+                {
+                    new expert_summary
+                    {
+                        id = Guid.NewGuid(),
+                        job_function = new role { Id = Guid.NewGuid() },
+                        languages = new List<language_summary>
+                        {
+                            new language_summary { id = Guid.NewGuid(), language = new language { Id = Guid.NewGuid() }}
+                        },
+                        location = new location {
+                            id = Guid.NewGuid(),
+                            location_type = new location_type
+                            {
+                                Id = Guid.NewGuid()
+                            }
+                        }
+                    }
+                },
+                communities = new List<community_summary>
+                {
+                    new community_summary
+                    {
+                         id = Guid.NewGuid(),
+                         solutions = new List<community_solution>
+                         {
+                             new community_solution { id = Guid.NewGuid() }
+                         }
+                    }
+                }
+            };
+
+            return Ok( c);
+        }
+    }
+
+    public class RoutesController : ODataController
+    {
+        [EnableQuery]
+        public IActionResult Get()
+        {
+            Route r = new Route { Id = Guid.NewGuid() };
+            return Ok(new Route[] { r });
+        }
+    }
+
     public class MoviesController : ODataController
     {
         private readonly MovieContext _context;
