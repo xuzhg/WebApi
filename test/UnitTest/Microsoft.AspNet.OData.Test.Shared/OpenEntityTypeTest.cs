@@ -350,6 +350,42 @@ namespace Microsoft.AspNet.OData.Test
         }
 
         [Fact]
+        public async Task Patch_UnTyped_OpenEntityType()
+        {
+            // Arrange
+            const string Payload = "{" +
+              "\"CustomerId\":6,\"Name@odata.type\":\"#String\",\"Name\":\"FirstName 6\"," +
+              "\"Address\":{" +
+                "\"@odata.type\":\"#NS.Address\",\"Street\":\"Street 6\",\"City\":\"City 6\"" +
+              "}," +
+              "\"Addresses@odata.type\":\"#Collection(NS.Address)\"," +
+              "\"Addresses\":[{" +
+                "\"@odata.type\":\"#NS.Address\",\"Street\":\"Street 7\",\"City\":\"City 7\"" +
+              "}]," +
+              "\"DoubleList@odata.type\":\"#Collection(Double)\"," +
+              "\"DoubleList\":[5.5, 4.4, 3.3]," +
+              "\"FavoriteColor@odata.type\":\"#NS.Color\"," +
+              "\"FavoriteColor\":\"Red\"" +
+            "}";
+
+            var controllers = new[] { typeof(UntypedSimpleOpenCustomersController) };
+            var server = TestServerFactory.Create(controllers, (config) =>
+            {
+                config.MapODataServiceRoute("odata", "odata", GetUntypedEdmModel());
+            });
+            var client = TestServerFactory.CreateClient(server);
+            string a = "http://localhost/odata/UntypedSimpleOpenCustomers(1)";
+            // Act
+            HttpRequestMessage request = new HttpRequestMessage(new HttpMethod("Patch"), a);
+            request.Content = new StringContent(Payload);
+            request.Content.Headers.ContentType = MediaTypeWithQualityHeaderValue.Parse("application/json");
+            HttpResponseMessage response = await client.SendAsync(request);
+
+            // Assert
+            Assert.True(response.IsSuccessStatusCode);
+        }
+
+        [Fact]
         public async Task Patch_OpenEntityType()
         {
             // Arrange
@@ -698,6 +734,19 @@ namespace Microsoft.AspNet.OData.Test
             Assert.Equal("0", ((EdmEnumObject)parameters["Color"]).Value);
             return Ok();
         }
+
+
+        public ITestActionResult Patch(int key, EdmEntityObject patch)
+        {
+
+            patch.TryGetPropertyValue("Address", out object address);
+            EdmComplexObject address1 = address as EdmComplexObject;
+
+            // EdmEntityObject orginial = new EdmEntityObject();
+
+            return Ok();
+        }
+
 
         public ITestActionResult PostUntypedSimpleOpenCustomer(EdmEntityObject customer)
         {
