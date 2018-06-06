@@ -10,6 +10,20 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace AspNetCoreODataSample.Web.Controllers
 {
+    public class UsersController : ODataController
+    {
+        [EnableQuery]
+        public IActionResult Get()
+        {
+            return Ok(new User[] { new User { Id = 1 } });
+        }
+
+        public IActionResult Post([FromBody]User user)
+        {
+            return Ok();
+        }
+    }
+
     public class MoviesController : ODataController
     {
         private readonly MovieContext _context;
