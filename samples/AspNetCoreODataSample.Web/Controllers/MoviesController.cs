@@ -4,12 +4,30 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using AspNetCoreODataSample.Web.Models;
 using Microsoft.AspNet.OData;
+using Microsoft.AspNet.OData.Query;
 using Microsoft.AspNetCore.Mvc;
 
 namespace AspNetCoreODataSample.Web.Controllers
 {
+    public class MyEntitiesController : ODataController
+    {
+        [EnableQuery]
+        public IEnumerable<MyEntity> Get(ODataQueryOptions<MyEntity> options)
+        {
+            IList<MyEntity> entities = new List<MyEntity>
+            {
+                new MyEntity { Id = 1, MyName = "Sam" },
+                new MyEntity { Id = 2, MyName = "Sannie" },
+                new MyEntity { Id = 3, MyName = "Sem" }
+            };
+
+            return entities;
+        }
+    }
+
     public class MoviesController : ODataController
     {
         private readonly MovieContext _context;

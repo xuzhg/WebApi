@@ -8,6 +8,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using AspNetCoreODataSample.Web.Models;
+using Microsoft.OData.Edm;
+using Microsoft.AspNet.OData.Builder;
 
 namespace AspNetCoreODataSample.Web
 {
@@ -36,18 +38,35 @@ namespace AspNetCoreODataSample.Web
                 app.UseDeveloperExceptionPage();
             }
 
-            var model = EdmModelBuilder.GetEdmModel();
+            //var model = EdmModelBuilder.GetEdmModel();
+            var model = GetEdmModel();
 
             app.UseMvc(builder =>
             {
                 builder.Select().Expand().Filter().OrderBy().MaxTop(100).Count();
 
+                builder.MapODataServiceRoute("odata", "odata", model);/*
                 builder.MapODataServiceRoute("odata1", "efcore", model);
 
                 builder.MapODataServiceRoute("odata2", "inmem", model);
 
-                builder.MapODataServiceRoute("odata3", "composite", EdmModelBuilder.GetCompositeModel());
+                builder.MapODataServiceRoute("odata3", "composite", EdmModelBuilder.GetCompositeModel());*/
             });
         }
+
+        private static IEdmModel GetEdmModel()
+        {
+            var builder = new ODataConventionModelBuilder();
+            builder.EnableLowerCamelCase();
+            builder.EntitySet<MyEntity>("MyEntities");
+            return builder.GetEdmModel();
+        }
+    }
+
+    public class MyEntity
+    {
+        public int Id { get; set; }
+
+        public string MyName { get; set; }
     }
 }
