@@ -48,11 +48,11 @@ namespace Dynasource.Models
 
         public company_size company_size { get; set; }
 
-        public IList<location> locations { get; set; }
+        public IEnumerable<location> locations { get; set; }
 
-        public IList<expert_summary> experts { get; set; }
+        public IEnumerable<expert_summary> experts { get; set; }
 
-        public IList<community_summary> communities { get; set; }
+        public IEnumerable<community_summary> communities { get; set; }
 
         public IDictionary<string, object> Dynamics { get; set; }
     }
@@ -70,7 +70,7 @@ namespace Dynasource.Models
 
         public role job_function { get; set; }
 
-        public IList<language_summary> languages { get; set; }
+        public IEnumerable<language_summary> languages { get; set; }
 
         public location location { get; set; }
     }
@@ -86,7 +86,7 @@ namespace Dynasource.Models
     {
         public Guid id { get; set; }
 
-        public IList<community_solution> solutions { get; set; }
+        public IEnumerable<community_solution> solutions { get; set; }
     }
 
     public class community_solution
