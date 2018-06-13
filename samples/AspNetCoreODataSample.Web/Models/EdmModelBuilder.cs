@@ -30,5 +30,17 @@ namespace AspNetCoreODataSample.Web.Models
             type.HasKey(x => new { x.FirstName, x.LastName });
             return builder.GetEdmModel();
         }
+
+        public class Entity
+        {
+            public int Id { get; set; }
+        }
+
+        public static IEdmModel GetCompositeModel1()
+        {
+            var builder = new ODataConventionModelBuilder();
+            builder.EntitySet<Entity>("Entity");
+            return builder.GetEdmModel();
+        }
     }
 }
