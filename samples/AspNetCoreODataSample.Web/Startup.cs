@@ -46,7 +46,7 @@ namespace AspNetCoreODataSample.Web
 
                 builder.MapODataServiceRoute("odata2", "inmem", model);
 
-                builder.MapODataServiceRoute("odata3", "composite", EdmModelBuilder.GetCompositeModel());
+                builder.MapODataServiceRoute("odata3", "a", EdmModelBuilder.GetCompositeModel());
             });
         }
     }

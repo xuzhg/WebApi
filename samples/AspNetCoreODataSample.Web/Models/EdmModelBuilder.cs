@@ -26,8 +26,8 @@ namespace AspNetCoreODataSample.Web.Models
         {
             var builder = new ODataConventionModelBuilder();
             builder.EntitySet<Person>("People");
-            var type = builder.EntitySet<Person>("Person").EntityType;
-            type.HasKey(x => new { x.FirstName, x.LastName });
+        //    var type = builder.EntitySet<Person>("Person").EntityType;
+         //   type.HasKey(x => new { x.FirstName, x.LastName });
             return builder.GetEdmModel();
         }
     }
