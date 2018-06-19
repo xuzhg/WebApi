@@ -10,6 +10,8 @@ using Microsoft.Extensions.DependencyInjection;
 using AspNetCoreODataSample.Web.Models;
 using Microsoft.OData.Edm;
 using Microsoft.AspNet.OData.Builder;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Console;
 
 namespace AspNetCoreODataSample.Web
 {
@@ -22,10 +24,16 @@ namespace AspNetCoreODataSample.Web
 
         public IConfiguration Configuration { get; }
 
+        public static readonly LoggerFactory MyLoggerFactory
+            = new LoggerFactory(new[] { new ConsoleLoggerProvider((_, __) => true, true) });
+
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
         {
-            services.AddDbContext<MovieContext>(opt => opt.UseInMemoryDatabase("MovieList"));
+            string ConnectionString = @"Server=(localdb)\mssqllocaldb;Database=Demo.UsersSam;Integrated Security=True;ConnectRetryCount=0";
+            services.AddDbContext<UsersContext>(opt => opt.UseSqlServer(ConnectionString).UseLoggerFactory(MyLoggerFactory));
+
+            //services.AddDbContext<MovieContext>(opt => opt.UseInMemoryDatabase("MovieList"));
             services.AddOData();
             services.AddMvc();
         }
@@ -56,10 +64,13 @@ namespace AspNetCoreODataSample.Web
         {
             //var builder = new ODataModelBuilder();
             var builder = new ODataConventionModelBuilder();
+            builder.EntitySet<User>("Users");
+            /*
             builder.EnableLowerCamelCase();
             var type = builder.EntitySet<User>("Users").EntityType;
             type.HasKey(_ => _.Id);
-            type.Property(_ => _.Id).IsOptional();
+            type.Property(_ => _.Id).IsOptional();*/
+
             return builder.GetEdmModel();
         }
     }
@@ -67,5 +78,10 @@ namespace AspNetCoreODataSample.Web
     public class User
     {
         public int Id { get; set; }
+
+        public string UserName { get; set; }
+        public string FirstName { get; set; }
+        public string LastName { get; set; }
+        public int Age { get; set; }
     }
 }

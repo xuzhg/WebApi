@@ -320,11 +320,15 @@ namespace Microsoft.AspNet.OData.Query.Expressions
 
             // Initialize property 'Instance' on the wrapper class
             // source => new Wrapper { Instance = element }
+            /*
             wrapperProperty = wrapperType.GetProperty("Instance");
-            wrapperTypeMemberAssignments.Add(Expression.Bind(wrapperProperty, source));
+            wrapperTypeMemberAssignments.Add(Expression.Bind(wrapperProperty, source));*/
 
             if (IsSelectAll(selectExpandClause))
             {
+                wrapperProperty = wrapperType.GetProperty("Instance");
+                wrapperTypeMemberAssignments.Add(Expression.Bind(wrapperProperty, source));
+
                 wrapperProperty = wrapperType.GetProperty("UseInstanceForProperties");
                 wrapperTypeMemberAssignments.Add(Expression.Bind(wrapperProperty, Expression.Constant(true)));
                 isInstancePropertySet = true;

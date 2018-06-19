@@ -12,10 +12,34 @@ namespace AspNetCoreODataSample.Web.Controllers
 {
     public class UsersController : ODataController
     {
+        private readonly UsersContext _context;
+
+        public UsersController(UsersContext context)
+        {
+            _context = context;
+
+            if (context.Database.EnsureCreated())
+            {
+                if (_context.Users.Count() == 0)
+                {
+                    User m = new User
+                    {
+                        UserName = "UserName1",
+                        FirstName = "First",
+                        LastName = "Last",
+                        Age = 10
+                    };
+
+                    _context.Users.Add(m);
+                    _context.SaveChanges();
+                }
+            }
+        }
+
         [EnableQuery]
         public IActionResult Get()
         {
-            return Ok(new User[] { new User { Id = 1 } });
+            return Ok(_context.Users);
         }
 
         public IActionResult Post([FromBody]User user)
