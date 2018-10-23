@@ -42,11 +42,13 @@ namespace AspNetCoreODataSample.Web
             {
                 builder.Select().Expand().Filter().OrderBy().MaxTop(100).Count();
 
+                builder.MapODataServiceRoute("odata", "odata", EdmModelBuilder.GetModel());/*
+
                 builder.MapODataServiceRoute("odata1", "efcore", model);
 
                 builder.MapODataServiceRoute("odata2", "inmem", model);
 
-                builder.MapODataServiceRoute("odata3", "composite", EdmModelBuilder.GetCompositeModel());
+                builder.MapODataServiceRoute("odata3", "composite", EdmModelBuilder.GetCompositeModel());*/
             });
         }
     }

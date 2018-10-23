@@ -7,7 +7,7 @@ using Microsoft.AspNet.OData;
 using Microsoft.AspNetCore.Mvc;
 
 namespace AspNetCoreODataSample.Web.Controllers
-{
+{/*
     public class PeopleController : ODataController
     {
         [EnableQuery]
@@ -32,5 +32,5 @@ namespace AspNetCoreODataSample.Web.Controllers
         {
             return Created(person);
         }
-    }
+    }*/
 }

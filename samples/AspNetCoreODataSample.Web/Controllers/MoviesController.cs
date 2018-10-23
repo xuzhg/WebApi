@@ -9,7 +9,7 @@ using Microsoft.AspNet.OData;
 using Microsoft.AspNetCore.Mvc;
 
 namespace AspNetCoreODataSample.Web.Controllers
-{
+{/*
     public class MoviesController : ODataController
     {
         private readonly MovieContext _context;
@@ -87,5 +87,5 @@ namespace AspNetCoreODataSample.Web.Controllers
 
             return Ok(m);
         }
-    }
+    }*/
 }
