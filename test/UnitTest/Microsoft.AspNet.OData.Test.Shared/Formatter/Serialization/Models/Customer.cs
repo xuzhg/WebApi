@@ -22,6 +22,8 @@ namespace Microsoft.AspNet.OData.Test.Formatter.Serialization.Models
         public IList<Order> Orders { get; set; }
         public SimpleEnum SimpleEnum { get; set; }
         public Address HomeAddress { get; set; }
+
+        public Address Address { get; set; }
     }
 
     public class SpecialCustomer : Customer

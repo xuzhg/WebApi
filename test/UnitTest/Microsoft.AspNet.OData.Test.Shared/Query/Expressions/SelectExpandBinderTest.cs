@@ -655,6 +655,21 @@ namespace Microsoft.AspNet.OData.Test.Query.Expressions
             Assert.Equal(typeof(Customer).GetProperty("Orders"), (property as MemberExpression).Member);
         }
 
+        [Fact]
+        public void CreateNamedPropertyExpression_NonDerivedProperty_ReturnsMemberAccessExpression()
+        {
+            Expression customer = Expression.Constant(new Customer());
+            IEdmStructuralProperty accountProperty = _model.Customer.StructuralProperties().Single(c => c.Name == "Account");
+
+            ODataSelectPath selectPath = new ODataSelectPath(new PropertySegment(accountProperty));
+            PathSelectItem pathSelectItem = new PathSelectItem(selectPath);
+
+            NamedPropertyExpression namedProperty = _binder.CreateNamedPropertyExpression(customer, _model.Customer, pathSelectItem);
+
+            //Assert.Equal(ExpressionType.MemberAccess, property.NodeType);
+            //Assert.Equal(typeof(Customer).GetProperty("Orders"), (property as MemberExpression).Member);
+        }
+
         //[Fact]
         //public void CreatePropertyValueExpression_ThrowsODataException_IfMappingTypeIsNotFoundInModel()
         //{
@@ -676,6 +691,22 @@ namespace Microsoft.AspNet.OData.Test.Query.Expressions
             IEdmNavigationProperty specialOrdersProperty = _model.SpecialCustomer.DeclaredNavigationProperties().Single();
 
             Expression property = _binder.CreatePropertyValueExpression(_model.Customer, specialOrdersProperty, customer);
+
+            Assert.Equal(String.Format("({0} As SpecialCustomer).SpecialOrders", customer.ToString()), property.ToString());
+        }
+
+        [Fact]
+        public void CreatePropertyValueExpressionWithFilter_ReturnsPropertyAccessExpression()
+        {
+            _model.Model.SetAnnotationValue<ClrTypeAnnotation>(_model.Address, new ClrTypeAnnotation(typeof(Microsoft.AspNet.OData.Test.Formatter.Serialization.Models.Address)));
+            Expression customer = Expression.Constant(new Customer());
+
+            IEdmStructuralProperty homeAddressProperty = _model.Customer.Properties().FirstOrDefault(c => c.Name == "Address") as IEdmStructuralProperty;
+            IEdmStructuralProperty streetProperty = _model.Address.Properties().FirstOrDefault(c => c.Name == "Street") as IEdmStructuralProperty;
+
+            PathSelectItem selectItem = new PathSelectItem(new ODataSelectPath(new PropertySegment(homeAddressProperty), new PropertySegment(streetProperty)));
+
+            Expression property = _binder.CreatePropertyValueExpressionWithFilter(_model.Customer, streetProperty, customer, selectItem);
 
             Assert.Equal(String.Format("({0} As SpecialCustomer).SpecialOrders", customer.ToString()), property.ToString());
         }

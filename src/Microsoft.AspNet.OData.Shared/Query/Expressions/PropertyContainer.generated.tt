@@ -13,8 +13,8 @@ using System.Collections.Generic;
 
 namespace Microsoft.AspNet.OData.Query.Expressions
 {
-	internal abstract partial class PropertyContainer
-	{
+    internal abstract partial class PropertyContainer
+    {
         // Entityframework requires that the two different type initializers for a given type in the same query have the same set of properties in the same order.
         // A $select=Prop1,Prop2,Prop3 where Prop1 and Prop2 are of the same type without this extra NamedPropertyWithNext type results in an select expression that looks like,
         //      c => new NamedProperty<int> { Name = "Prop1", Value = c.Prop1, Next0 = new NamedProperty<int> { Name = "Prop2", Value = c.Prop2 }, Next2 = new NamedProperty<int> { Name = "Prop3", Value = c.Prop3 } };
@@ -28,9 +28,9 @@ string[] types = new string[] { "SingleExpandedProperty", "CollectionExpandedPro
 foreach(var type in types) {
 var baseClass = type;
 for(int level = 0; level < levels; level++) {
-	var newClass = type + "WithNext" + level.ToString();
+    var newClass = type + "WithNext" + level.ToString();
 #>
-		private class <#= newClass #><T> : <#= baseClass #><T>
+        private class <#= newClass #><T> : <#= baseClass #><T>
         {
             public PropertyContainer Next<#= level #> { get; set; }
 
@@ -47,18 +47,18 @@ baseClass =  newClass;
 
 baseClass = type;
 #>
-	private static List<Type> <#= type #>Types = new List<Type> {
-		typeof(<#= type #><>),
-		<#
+    private static List<Type> <#= type #>Types = new List<Type> {
+        typeof(<#= type #><>),
+        <#
 for(int level = 0; level < levels; level++) {
-		var newClass = type + "WithNext" + level.ToString();
-		#>
-		typeof(<#= newClass #><>),
-		<#
-	#>
-	<#}#>};
-	<#
-	}#>
+        var newClass = type + "WithNext" + level.ToString();
+        #>
+        typeof(<#= newClass #><>),
+        <#
+    #>
+    <#}#>};
+    <#
+    }#>
 
-	}
+    }
 }

@@ -6,6 +6,20 @@ using System.Linq.Expressions;
 
 namespace Microsoft.AspNet.OData.Query.Expressions
 {
+    internal class NamedOnlyExpression
+    {
+        public NamedOnlyExpression(Expression name)
+        {
+            Contract.Assert(name != null);
+
+            Name = name;
+        }
+
+        public Expression Name { get; private set; }
+
+        public Expression NullCheck { get; set; }
+    }
+
     /// <summary>
     /// Represents a container that captures a named property that is a part of the select expand query.
     /// </summary>

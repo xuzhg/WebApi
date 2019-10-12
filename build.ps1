@@ -61,8 +61,8 @@ $ENLISTMENT_ROOT = Split-Path -Parent $MyInvocation.MyCommand.Definition
 $LOGDIR = $ENLISTMENT_ROOT + "\bin"
 
 # Default to use Visual Studio 2015
-$VS14MSBUILD=$PROGRAMFILESX86 + "\MSBuild\14.0\Bin\MSBuild.exe"
-$VSTEST = $PROGRAMFILESX86 + "\Microsoft Visual Studio 14.0\Common7\IDE\CommonExtensions\Microsoft\TestWindow\vstest.console.exe"
+$VS14MSBUILD=$PROGRAMFILESX86 + "\Microsoft Visual Studio\2019\Enterprise\MSBuild\Current\Bin\MSBuild.exe"
+$VSTEST = $PROGRAMFILESX86 + "\Microsoft Visual Studio\2019\Enterprise\Common7\IDE\CommonExtensions\Microsoft\TestWindow\vstest.console.exe"
 
 # Figure out the directory and path for SN.exe
 $SN = $null
@@ -83,7 +83,7 @@ ForEach ($directory in [System.IO.Directory]::EnumerateDirectories($PROGRAMFILES
 # Use Visual Studio 2017 compiler for .NET Core and .NET Standard. Because VS2017 has different paths for different
 # versions, we have to check for each version. Meanwhile, the dotnet CLI is required to run the .NET Core unit tests in this script.
 # Furthurmore, Visual Studio 2017 has a Preview version as well which uses Microsoft Visual Studio\Preview as path instead of \2017
-$VS15VARIANTS = "2017", "Preview"
+$VS15VARIANTS = "2019", "Preview"
 $VS15VARIANTPATH = $null
 ForEach ($variant in $VS15VARIANTS)
 {

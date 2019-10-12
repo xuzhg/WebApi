@@ -667,6 +667,8 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
             }
         }
 
+
+
         private void WriteComplexProperties(SelectExpandNode selectExpandNode,
             ResourceContext resourceContext, ODataWriter writer)
         {
@@ -805,6 +807,32 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
                     WriteComplexAndExpandedNavigationProperty(navPropertyToExpand.Key, navPropertyToExpand.Value, resourceContext, writer);
                     writer.WriteEnd();
                 }
+            }
+        }
+
+        private void WriteComplexProperties2(SelectExpandNode selectExpandNode, ResourceContext resourceContext, ODataWriter writer)
+        {
+            Contract.Assert(selectExpandNode != null);
+            Contract.Assert(resourceContext != null);
+            Contract.Assert(writer != null);
+
+            IDictionary<IEdmStructuralProperty, IList<PathSelectItem>> complexProperties = selectExpandNode.SelectedComplexProperties2;
+
+            Contract.Assert(complexProperties != null);
+
+            foreach (var complexPropertyItem in complexProperties)
+            {
+                IEdmStructuralProperty complexProperty = complexPropertyItem.Key;
+
+                ODataNestedResourceInfo nestedResourceInfo = new ODataNestedResourceInfo
+                {
+                    IsCollection = complexProperty.Type.IsCollection(),
+                    Name = complexProperty.Name
+                };
+
+                writer.WriteStart(nestedResourceInfo);
+                WriteComplexAndExpandedNavigationProperty(complexProperty, null, resourceContext, writer);
+                writer.WriteEnd();
             }
         }
 

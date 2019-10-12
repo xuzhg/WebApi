@@ -39,6 +39,9 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
             SelectedActions = new HashSet<IEdmAction>();
             SelectedFunctions = new HashSet<IEdmFunction>();
             SelectedDynamicProperties = new HashSet<string>();
+
+            SelectedComplexProperties2 = new Dictionary<IEdmStructuralProperty, IList<PathSelectItem>>();
+            SelectedStructuralProperties2 = new Dictionary<IEdmStructuralProperty, IList<PathSelectItem>>();
         }
 
         /// <summary>
@@ -59,6 +62,9 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
             SelectedFunctions = new HashSet<IEdmFunction>(selectExpandNodeToCopy.SelectedFunctions);
             SelectedNavigationProperties = new HashSet<IEdmNavigationProperty>(selectExpandNodeToCopy.SelectedNavigationProperties);
             SelectedStructuralProperties = new HashSet<IEdmStructuralProperty>(selectExpandNodeToCopy.SelectedStructuralProperties);
+
+            SelectedStructuralProperties2 = new Dictionary<IEdmStructuralProperty, IList<PathSelectItem>>();
+            SelectedComplexProperties2 = new Dictionary<IEdmStructuralProperty, IList<PathSelectItem>>();
         }
 
         /// <summary>
@@ -164,6 +170,10 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
                 {
                     SelectedStructuralProperties = allStructuralProperties;
                     SelectedComplexProperties = allComplexStructuralProperties;
+
+                    Convert(allStructuralProperties, SelectedStructuralProperties2);
+                    Convert(allComplexStructuralProperties, SelectedComplexProperties2);
+
                     SelectedNavigationProperties = allNavigationProperties;
                     SelectedActions = allActions;
                     SelectedFunctions = allFunctions;
@@ -174,7 +184,12 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
                     if (selectExpandClause.AllSelected)
                     {
                         SelectedStructuralProperties = allStructuralProperties;
+
                         SelectedComplexProperties = allComplexStructuralProperties;
+
+                        Convert(allStructuralProperties, SelectedStructuralProperties2);
+                        Convert(allComplexStructuralProperties, SelectedComplexProperties2);
+
                         SelectedNavigationProperties = allNavigationProperties;
                         SelectedActions = allActions;
                         SelectedFunctions = allFunctions;
@@ -198,6 +213,14 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
 
                 // remove referenced navigation properties from the selected navigation properties.
                 SelectedNavigationProperties.ExceptWith(ReferencedNavigationProperties);
+            }
+        }
+
+        private void Convert(HashSet<IEdmStructuralProperty> properties, IDictionary<IEdmStructuralProperty, IList<PathSelectItem>> dics)
+        {
+            foreach (var property in properties)
+            {
+                dics[property] = null;
             }
         }
 
@@ -273,6 +296,16 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
         /// Gets the path to property corresponding to the SelectExpandNode. Null for a top-level select expand.
         /// </summary>
         internal Queue<IEdmProperty> PropertiesInPath { get; private set; }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        public IDictionary<IEdmStructuralProperty, IList<PathSelectItem>> SelectedComplexProperties2 { get; private set; }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        public IDictionary<IEdmStructuralProperty, IList<PathSelectItem>> SelectedStructuralProperties2 { get; private set; }
 
         /// <summary>
         /// Gets the property corresponding to the SelectExpandNode. Null for a top-level select expand.
@@ -424,6 +457,51 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
                         continue;
                     }
 
+                    IList<ODataPathSegment> remainingSegments = null;
+                    PropertySegment firstPropertySegment = ProcessSelectExpandPath(pathSelectItem.SelectedPath, out remainingSegments) as PropertySegment;
+                    if (firstPropertySegment != null)
+                    {
+                        ODataSelectPath nextSelectPath = remainingSegments == null ?
+                            new ODataSelectPath() :
+                            new ODataSelectPath(remainingSegments);
+
+                        PathSelectItem newSelectItem = new PathSelectItem(nextSelectPath, pathSelectItem.NavigationSource,
+                                    pathSelectItem.SelectAndExpand,
+                                    pathSelectItem.FilterOption,
+                                    pathSelectItem.OrderByOption,
+                                    pathSelectItem.TopOption,
+                                    pathSelectItem.SkipOption,
+                                    pathSelectItem.CountOption,
+                                    pathSelectItem.SearchOption,
+                                    pathSelectItem.ComputeOption);
+
+                        bool isComplexOrCollectComplex = IsComplexOrCollectionComplex(firstPropertySegment.Property);
+                        IList<PathSelectItem> value;
+
+                        if (!isComplexOrCollectComplex)
+                        {
+                            if (!SelectedStructuralProperties2.TryGetValue(firstPropertySegment.Property, out value))
+                            {
+                                value = new List<PathSelectItem>();
+
+                                // $select=PrimitiveCollect($top=2)
+                                SelectedStructuralProperties2[firstPropertySegment.Property] = value;
+                            }
+                        }
+                        else
+                        {
+                            if (!SelectedComplexProperties2.TryGetValue(firstPropertySegment.Property, out value))
+                            {
+                                value = new List<PathSelectItem>();
+                                SelectedComplexProperties2[firstPropertySegment.Property] = value;
+                            }
+                        }
+
+                        value.Add(newSelectItem);
+                        continue;
+                    }
+
+                    /*
                     PropertySegment structuralPropertySegment = segment as PropertySegment;
                     if (structuralPropertySegment != null)
                     {
@@ -436,8 +514,9 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
                         {
                             SelectedComplexProperties.Add(structuralProperty);
                         }
+
                         continue;
-                    }
+                    }*/
 
                     OperationSegment operationSegment = segment as OperationSegment;
                     if (operationSegment != null)
@@ -452,6 +531,7 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
                         SelectedDynamicProperties.Add(dynamicPathSegment.Identifier);
                         continue;
                     }
+
                     throw new ODataException(Error.Format(SRResources.SelectionTypeNotSupported, segment.GetType().Name));
                 }
 
@@ -460,6 +540,10 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
                 {
                     SelectedStructuralProperties = allStructuralProperties;
                     SelectedComplexProperties = allNestedProperties;
+
+                    Convert(allStructuralProperties, SelectedStructuralProperties2);
+                    Convert(allNestedProperties, SelectedComplexProperties2);
+
                     SelectedNavigationProperties = allNavigationProperties;
                     SelectAllDynamicProperties = true;
                     continue;
@@ -475,6 +559,38 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
 
                 throw new ODataException(Error.Format(SRResources.SelectionTypeNotSupported, selectItem.GetType().Name));
             }
+        }
+
+        /// <summary>
+        /// For example: $select=NS.SubType1/abc/NS.SubType2/xyz
+        /// => firstPropertySegment: "abc"
+        /// => remainingSegments:  NS.SubType2/xyz
+        /// </summary>
+        public static ODataPathSegment ProcessSelectExpandPath(ODataPath selectExpandPath, out IList<ODataPathSegment> remainingSegments) // could be null
+        {
+            remainingSegments = null;
+            ODataPathSegment firstPropertySegment = null;
+            foreach (var segment in selectExpandPath)
+            {
+                if (firstPropertySegment != null)
+                {
+                    if (remainingSegments == null)
+                    {
+                        remainingSegments = new List<ODataPathSegment>();
+                    }
+
+                    remainingSegments.Add(segment);
+                    continue;
+                }
+
+                if (segment is PropertySegment || segment is NavigationPropertySegment)
+                {
+                    firstPropertySegment = segment;
+                    continue;
+                }
+            }
+
+            return firstPropertySegment;
         }
 
         private void AddOperations(HashSet<IEdmAction> allActions, HashSet<IEdmFunction> allFunctions, OperationSegment operationSegment)
@@ -494,11 +610,34 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
                 }
             }
         }
+
         // we only support paths of type 'cast/structuralOrNavPropertyOrAction' and 'structuralOrNavPropertyOrAction'.
+        // It supports the path like
+        // "{cast|StructuralProperty}/|{cast|StructuralProperty}|/{NavigationProperty|StructuralProperty|OperationSegment|DynamicPathSegment|
         internal static void ValidatePathIsSupportedForSelect(ODataPath path)
         {
             int segmentCount = path.Count();
 
+            ODataPathSegment lastSegment = path.LastSegment;
+            if (!(lastSegment is NavigationPropertySegment
+                || lastSegment is PropertySegment
+                || lastSegment is OperationSegment
+                || lastSegment is DynamicPathSegment))
+            {
+                throw new ODataException(Error.Format(SRResources.InvalidLastSegmentInSelectExpandPath, lastSegment.Identifier));
+            }
+
+            for (int i = 0 ; i < segmentCount - 1; i++)
+            {
+                ODataPathSegment segment = path.ElementAt(i);
+                if (!(segment is PropertySegment
+                    || segment is TypeSegment))
+                {
+                    throw new ODataException(Error.Format(SRResources.InvalidSegmentInSelectExpandPath, segment.Identifier));
+                }
+            }
+
+            /*
             if (segmentCount > 2)
             {
                 throw new ODataException(SRResources.UnsupportedSelectExpandPath);
@@ -510,16 +649,7 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
                 {
                     throw new ODataException(SRResources.UnsupportedSelectExpandPath);
                 }
-            }
-
-            ODataPathSegment lastSegment = path.LastSegment;
-            if (!(lastSegment is NavigationPropertySegment
-                || lastSegment is PropertySegment
-                || lastSegment is OperationSegment
-                || lastSegment is DynamicPathSegment))
-            {
-                throw new ODataException(SRResources.UnsupportedSelectExpandPath);
-            }
+            }*/
         }
 
         // we support paths of type 'cast/structuralOrNavPropertyOrAction', 'ComplexObject/cast/StructuralOrNavPropertyOnAction', 'ComplexObject/structuralOrNavPropertyOnAction' and 'structuralOrNavPropertyOrAction'.
@@ -591,6 +721,30 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
                     structuralProperties.Add(edmStructuralProperty);
                 }
             }
+        }
+
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="edmStructuralProperty"></param>
+        /// <returns></returns>
+        public static bool IsComplexOrCollectionComplex(IEdmStructuralProperty edmStructuralProperty)
+        {
+            if (edmStructuralProperty.Type.IsComplex())
+            {
+                return true;
+            }
+
+            if (edmStructuralProperty.Type.IsCollection())
+            {
+                if (edmStructuralProperty.Type.AsCollection().ElementType().IsComplex())
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
     }
 }
