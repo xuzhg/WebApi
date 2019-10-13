@@ -686,10 +686,14 @@ namespace Microsoft.AspNet.OData.Query.Expressions
 
             foreach (var propertyToInclude in propertiesToInclude)
             {
-              //  SelectExpandClause subSelectExpandClause = CreateSelectExpandClause(propertyToInclude.Value);
+                IEdmStructuralProperty structuralProperty = propertyToInclude.Key;
+                PathSelectItem pathSelectItem = propertyToInclude.Value;
+                SelectExpandClause subSelectExpandClause = pathSelectItem.SelectAndExpand;
 
-              //  Expression propertyName = CreatePropertyNameExpression(elementType, propertyToInclude.Key, source);
-             //   Expression propertyValue = CreatePropertyValueExpression(elementType, propertyToInclude.Key, source);
+                //  SelectExpandClause subSelectExpandClause = CreateSelectExpandClause(propertyToInclude.Value);
+
+                Expression propertyName = CreatePropertyNameExpression(elementType, structuralProperty, source);
+                Expression propertyValue = CreatePropertyValueExpressionWithFilter(elementType, structuralProperty, source, pathSelectItem.FilterOption, null);
                 /*
                 Expression propertyName = CreatePropertyNameExpression(elementType, propertyToInclude.Key, source);
                 Expression propertyValue = CreatePropertyValueExpressionWithFilter(elementType, propertyToInclude.Key, source, propertyToInclude.Value);
@@ -698,7 +702,20 @@ namespace Microsoft.AspNet.OData.Query.Expressions
                 // 2. Inner to add property (Street)
                 // TODO: 
                 includedProperties.Add(new NamedPropertyExpression(propertyName, propertyValue));*/
+                ModelBoundQuerySettings querySettings = EdmLibHelpers.GetModelBoundQuerySettings(structuralProperty,
+                    structuralProperty.Type.ToStructuredType(),
+                    _context.Model);
 
+                // projection can be null if the expanded navigation property is not further projected or expanded.
+                if (subSelectExpandClause != null)
+                {
+                    int? modelBoundPageSize = querySettings == null ? null : querySettings.PageSize;
+                    propertyValue = ProjectAsWrapper(propertyValue, subSelectExpandClause, structuralProperty.Type.ToStructuredType(), pathSelectItem.NavigationSource, null, modelBoundPageSize);
+                }
+
+                NamedPropertyExpression propertyExpression = new NamedPropertyExpression(propertyName, propertyValue);
+                includedProperties.Add(propertyExpression);
+                /*
                 if (propertyToInclude.Value != null)
                 {
                     includedProperties.Add(CreateNamedPropertyExpression(source, elementType, propertyToInclude.Value));
@@ -709,6 +726,7 @@ namespace Microsoft.AspNet.OData.Query.Expressions
                     Expression propertyValue = CreatePropertyValueExpressionWithFilter(elementType, propertyToInclude.Key, source, propertyToInclude.Value);
                     includedProperties.Add(new NamedPropertyExpression(propertyName, propertyValue));
                 }
+                */
             }
 
             foreach (IEdmStructuralProperty propertyToInclude in autoSelectedProperties)
@@ -1315,10 +1333,6 @@ namespace Microsoft.AspNet.OData.Query.Expressions
 
             autoSelectedProperties = new HashSet<IEdmStructuralProperty>();
 
-           // Dictionary<IEdmStructuralProperty, PathSelectItem> propertiesToInclude = new Dictionary<IEdmStructuralProperty, PathSelectItem>();
-
-           // Dictionary<IEdmStructuralProperty, IList<SelectItem> > currentLevelPropertiesInclude = new Dictionary<IEdmStructuralProperty, IList<SelectItem>>();
-
             Dictionary<IEdmStructuralProperty, IncludePropertySelectItem> currentLevelPropertiesInclude = new Dictionary<IEdmStructuralProperty, IncludePropertySelectItem>();
 
             IEnumerable<SelectItem> selectedItems = selectExpandClause.SelectedItems;
@@ -1460,7 +1474,15 @@ namespace Microsoft.AspNet.OData.Query.Expressions
                     }
                 }
 
-                SelectExpandClause subSelectExpandClause = new SelectExpandClause(SubSelectItems, IsSelectAll);
+                SelectExpandClause subSelectExpandClause;
+                if (SubSelectItems.Any())
+                {
+                     subSelectExpandClause = new SelectExpandClause(SubSelectItems, IsSelectAll);
+                }
+                else
+                {
+                    subSelectExpandClause = null;
+                }
                 return new PathSelectItem(new ODataSelectPath(PropertySegment), NavigationSource, subSelectExpandClause,
                     FilterClause, OrderByClause, TopClause, SkipClause, CountClause, SearchClause, ComputeClause);
             }

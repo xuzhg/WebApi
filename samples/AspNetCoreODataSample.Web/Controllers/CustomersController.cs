@@ -24,12 +24,14 @@ namespace AspNetCoreODataSample.Web.Controllers
                     HomeAddress = new Address
                     {
                         RelatedCity = new City { Id = 31, Name = "Redmond"},
-                        Street = "148TH AVE NE"
+                        Street = "148TH AVE NE",
+                        Region = "Redmond",
+                        Emails = new List<string>{ "abc@look.com", "xyz@eye.com" }
                     },
                     VipOrder = new Order
                     {
                         Id = 11,
-                        Title = "John's Order"
+                        Title = "John's Order",
                     }
                 },
                 new Customer
@@ -39,7 +41,9 @@ namespace AspNetCoreODataSample.Web.Controllers
                     HomeAddress = new Address
                     {
                         RelatedCity = new City { Id = 31, Name = "Bellevue"},
-                        Street = "8TH ST"
+                        Street = "8TH ST",
+                        Region = "Bellevue",
+                        Emails = new List<string>{ "efj@alis.com", "783@eye.com" }
                     },
                     VipOrder = new Order
                     {

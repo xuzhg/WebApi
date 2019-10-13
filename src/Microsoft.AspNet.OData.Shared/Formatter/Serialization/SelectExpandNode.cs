@@ -480,6 +480,8 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
 
                         if (!isComplexOrCollectComplex)
                         {
+                            SelectedStructuralProperties.Add(firstPropertySegment.Property);
+
                             if (!SelectedStructuralProperties2.TryGetValue(firstPropertySegment.Property, out value))
                             {
                                 value = new List<PathSelectItem>();

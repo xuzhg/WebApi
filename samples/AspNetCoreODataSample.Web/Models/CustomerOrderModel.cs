@@ -9,6 +9,9 @@ namespace AspNetCoreODataSample.Web.Models
     {
         public string Street { get; set; }
 
+        public string Region { get; set; }
+
+        public IList<string> Emails { get; set; }
         public City RelatedCity { get; set; }
     }
 

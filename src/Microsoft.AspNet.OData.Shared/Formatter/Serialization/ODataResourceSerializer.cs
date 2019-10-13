@@ -347,6 +347,7 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
                     {
                         writer.WriteStart(resource);
                         WriteComplexProperties(selectExpandNode, resourceContext, writer);
+                        WriteComplexProperties2(selectExpandNode, resourceContext, writer);
                         WriteDynamicComplexProperties(resourceContext, writer);
                         WriteNavigationLinks(selectExpandNode.SelectedNavigationProperties, resourceContext, writer);
                         WriteExpandedNavigationProperties(selectExpandNode, resourceContext, writer);
@@ -830,15 +831,17 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
                     Name = complexProperty.Name
                 };
 
+                SelectExpandClause clause = new SelectExpandClause(complexPropertyItem.Value, false);
+
                 writer.WriteStart(nestedResourceInfo);
-                WriteComplexAndExpandedNavigationProperty(complexProperty, null, resourceContext, writer);
+                WriteComplexAndExpandedNavigationProperty(complexProperty, null, resourceContext, writer, false, clause);
                 writer.WriteEnd();
             }
         }
 
         private void WriteComplexAndExpandedNavigationProperty(IEdmProperty edmProperty, ExpandedNavigationSelectItem expandedNavigationSelectItem,
             ResourceContext resourceContext,
-            ODataWriter writer, bool expandReference = false)
+            ODataWriter writer, bool expandReference = false, SelectExpandClause subSelectExpandClause = null)
         {
             Contract.Assert(edmProperty != null);
             Contract.Assert(resourceContext != null);
@@ -871,7 +874,7 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
             {
                 // create the serializer context for the complex and expanded item.
 
-                ODataSerializerContext nestedWriteContext = new ODataSerializerContext(resourceContext, edmProperty, resourceContext.SerializerContext.QueryContext, expandedNavigationSelectItem);
+                ODataSerializerContext nestedWriteContext = new ODataSerializerContext(resourceContext, edmProperty, resourceContext.SerializerContext.QueryContext, expandedNavigationSelectItem, subSelectExpandClause);
                 nestedWriteContext.ExpandReference = expandReference;
 
                 // write object.

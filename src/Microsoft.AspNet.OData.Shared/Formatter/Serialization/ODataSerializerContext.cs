@@ -56,7 +56,9 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
         /// </param>
         /// <param name="queryContext">The <see cref="ODataQueryContext"/> for the navigation property being expanded.</param>
         /// <param name="expandedItem">The <see cref="ExpandedReferenceSelectItem"/> for the navigation property being expanded.></param>
-        internal ODataSerializerContext(ResourceContext resource, IEdmProperty edmProperty, ODataQueryContext queryContext, ExpandedReferenceSelectItem expandedItem)
+        /// <param name="subSelectExpandClause">aldkjl</param>
+        internal ODataSerializerContext(ResourceContext resource, IEdmProperty edmProperty, ODataQueryContext queryContext, ExpandedReferenceSelectItem expandedItem,
+            SelectExpandClause subSelectExpandClause = null)
         {
             if (resource == null)
             {
@@ -85,6 +87,12 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
             {
                 SelectExpandClause = expandedNavigationSelectItem.SelectAndExpand;
             }
+
+            if (subSelectExpandClause != null)
+            {
+                SelectExpandClause = subSelectExpandClause;
+            }
+
             EdmProperty = edmProperty; // should be nested property
 
             Queue<IEdmProperty> parentPropertiesInPath =
