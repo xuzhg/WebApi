@@ -505,7 +505,7 @@ namespace Microsoft.AspNet.OData.Query.Expressions
                 Expression.Constant(_modelID);
             wrapperTypeMemberAssignments.Add(Expression.Bind(wrapperProperty, wrapperPropertyValueExpression));
 
-            if (SelectExpandNode.IsSelectAll(selectExpandClause))
+            if (IsSelectAll(selectExpandClause))
             {
                 // Initialize property 'Instance' on the wrapper class
                 wrapperProperty = wrapperType.GetProperty("Instance");
@@ -581,7 +581,7 @@ namespace Microsoft.AspNet.OData.Query.Expressions
                 return false;
             }
 
-            if (SelectExpandNode.IsSelectAll(selectExpandClause))
+            if (IsSelectAll(selectExpandClause))
             {
                 return true;
             }
@@ -1113,7 +1113,7 @@ namespace Microsoft.AspNet.OData.Query.Expressions
                 return null;
             }
 
-            if (SelectExpandNode.IsSelectAll(projection) || !propertyToExpand.ToEntityType().Key().Any())
+            if (IsSelectAll(projection) || !propertyToExpand.ToEntityType().Key().Any())
             {
                 return Expression.Equal(propertyValue, Expression.Constant(null));
             }
@@ -1333,7 +1333,7 @@ namespace Microsoft.AspNet.OData.Query.Expressions
             foreach (ExpandedReferenceSelectItem expandedItem in selectedItems.OfType<ExpandedReferenceSelectItem>())
             {
                 IList<ODataPathSegment> remainingSegments;
-                ODataPathSegment firstPropertySegment = SelectExpandNode.ProcessSelectExpandPath(expandedItem.PathToNavigationProperty, out remainingSegments);
+                ODataPathSegment firstPropertySegment = expandedItem.PathToNavigationProperty.ProcessExpandPath(out remainingSegments);
 
                 PropertySegment firstStructuralPropertySegment = firstPropertySegment as PropertySegment;
                 NavigationPropertySegment firstNavigationPropertySegment = firstPropertySegment as NavigationPropertySegment;
@@ -1365,12 +1365,12 @@ namespace Microsoft.AspNet.OData.Query.Expressions
                 }
             }
 
-            if (!SelectExpandNode.IsSelectAll(selectExpandClause))
+            if (!IsSelectAll(selectExpandClause))
             {
                 foreach (var pathSelectItem in selectedItems.OfType<PathSelectItem>())
                 {
                     IList<ODataPathSegment> remainingSegments;
-                    ODataPathSegment firstPropertySegment = SelectExpandNode.ProcessSelectExpandPath(pathSelectItem.SelectedPath, out remainingSegments);
+                    ODataPathSegment firstPropertySegment = pathSelectItem.SelectedPath.ProcessSelectPath(out remainingSegments);
                     PropertySegment firstSturucturalPropertySegment = firstPropertySegment as PropertySegment;
                     Contract.Assert(firstSturucturalPropertySegment != null);
 
@@ -1426,7 +1426,8 @@ namespace Microsoft.AspNet.OData.Query.Expressions
                 ExpandedReferenceSelectItem expandItem = selectItem as ExpandedReferenceSelectItem;
                 if (expandItem != null)
                 {
-                    SelectExpandNode.ValidatePathIsSupportedForExpand(expandItem.PathToNavigationProperty);
+                    expandItem.PathToNavigationProperty.ValidatePath();
+
                     NavigationPropertySegment navigationSegment = expandItem.PathToNavigationProperty.LastSegment as NavigationPropertySegment;
                     if (navigationSegment == null)
                     {
@@ -1451,12 +1452,13 @@ namespace Microsoft.AspNet.OData.Query.Expressions
             Dictionary<IEdmStructuralProperty, IncludePropertySelectItem> currentLevelPropertiesInclude = new Dictionary<IEdmStructuralProperty, IncludePropertySelectItem>();
 
             IEnumerable<SelectItem> selectedItems = selectExpandClause.SelectedItems;
-            if (!SelectExpandNode.IsSelectAll(selectExpandClause))
+            if (!IsSelectAll(selectExpandClause))
             {
                 // only select requested properties and keys.
                 foreach (PathSelectItem pathSelectItem in selectedItems.OfType<PathSelectItem>())
                 {
-                    SelectExpandNode.ValidatePathIsSupportedForSelect(pathSelectItem.SelectedPath);
+                    pathSelectItem.SelectedPath.ValidatePath();
+
                     /*
                     PropertySegment structuralPropertySegment = pathSelectItem.SelectedPath.LastSegment as PropertySegment;
                     if (structuralPropertySegment != null)
@@ -1465,7 +1467,7 @@ namespace Microsoft.AspNet.OData.Query.Expressions
                     }*/
 
                     IList<ODataPathSegment> remainingSegments;
-                    ODataPathSegment firstPropertySegment = SelectExpandNode.ProcessSelectExpandPath(pathSelectItem.SelectedPath, out remainingSegments);
+                    ODataPathSegment firstPropertySegment = pathSelectItem.SelectedPath.ProcessSelectPath(out remainingSegments);
                     PropertySegment firstSturucturalPropertySegment = firstPropertySegment as PropertySegment;
                     Contract.Assert(firstSturucturalPropertySegment != null);
 
@@ -1481,7 +1483,7 @@ namespace Microsoft.AspNet.OData.Query.Expressions
                 foreach (ExpandedReferenceSelectItem expandedItem in selectedItems.OfType<ExpandedReferenceSelectItem>())
                 {
                     IList<ODataPathSegment> remainingSegments;
-                    ODataPathSegment firstPropertySegment = SelectExpandNode.ProcessSelectExpandPath(expandedItem.PathToNavigationProperty, out remainingSegments);
+                    ODataPathSegment firstPropertySegment = expandedItem.PathToNavigationProperty.ProcessExpandPath(out remainingSegments);
                     PropertySegment firstSturucturalPropertySegment = firstPropertySegment as PropertySegment;
 
                     if(firstSturucturalPropertySegment != null)
@@ -1596,6 +1598,21 @@ namespace Microsoft.AspNet.OData.Query.Expressions
                     oldRefItem.ComputeOption,
                     oldRefItem.ApplyOption);
             }
+        }
+
+        private static bool IsSelectAll(SelectExpandClause selectExpandClause)
+        {
+            if (selectExpandClause == null)
+            {
+                return true;
+            }
+
+            if (selectExpandClause.AllSelected || selectExpandClause.SelectedItems.OfType<WildcardSelectItem>().Any())
+            {
+                return true;
+            }
+
+            return false;
         }
 
         private static Type GetWrapperGenericType(bool isInstancePropertySet, bool isTypeNamePropertySet, bool isContainerPropertySet)

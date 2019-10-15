@@ -3,7 +3,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using Microsoft.AspNet.OData.Common;
 using Microsoft.AspNet.OData.Interfaces;
 using Microsoft.AspNet.OData.Query;
@@ -55,10 +54,9 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
         /// If the resource property is the dynamic complex, the resource property is null.
         /// </param>
         /// <param name="queryContext">The <see cref="ODataQueryContext"/> for the navigation property being expanded.</param>
-        /// <param name="expandedItem">The <see cref="ExpandedReferenceSelectItem"/> for the navigation property being expanded.></param>
-        /// <param name="subSelectExpandClause">aldkjl</param>
-        internal ODataSerializerContext(ResourceContext resource, IEdmProperty edmProperty, ODataQueryContext queryContext, ExpandedReferenceSelectItem expandedItem,
-            SelectExpandClause subSelectExpandClause = null)
+        /// <param name="currentSelectItem">The <see cref="ExpandedReferenceSelectItem"/> for the navigation property being expanded.></param>
+        internal ODataSerializerContext(ResourceContext resource, IEdmProperty edmProperty, ODataQueryContext queryContext, SelectItem currentSelectItem)
+            //ExpandedReferenceSelectItem expandedItem, SelectExpandClause subSelectExpandClause = null)
         {
             if (resource == null)
             {
@@ -79,40 +77,35 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
             ExpandReference = context.ExpandReference;
 
             QueryContext = queryContext;
-            ExpandedResource = resource; // parent resource
-            CurrentExpandedSelectItem = expandedItem;
 
-            var expandedNavigationSelectItem = expandedItem as ExpandedNavigationSelectItem;
+            ExpandedResource = resource; // parent resource
+
+            CurrentSelectItem = currentSelectItem;
+
+            var expandedNavigationSelectItem = currentSelectItem as ExpandedNavigationSelectItem;
             if (expandedNavigationSelectItem != null)
             {
                 SelectExpandClause = expandedNavigationSelectItem.SelectAndExpand;
+                NavigationSource = expandedNavigationSelectItem.NavigationSource;
             }
-
-            if (subSelectExpandClause != null)
+            else
             {
-                SelectExpandClause = subSelectExpandClause;
+                var pathSelectItem = currentSelectItem as PathSelectItem;
+                if (pathSelectItem != null)
+                {
+                    SelectExpandClause = pathSelectItem.SelectAndExpand;
+                    NavigationSource = pathSelectItem.NavigationSource;
+                }
+
+                var referencedNavigation = currentSelectItem as ExpandedReferenceSelectItem;
+                if (referencedNavigation != null)
+                {
+                    ExpandReference = true;
+                    NavigationSource = referencedNavigation.NavigationSource;
+                }
             }
 
             EdmProperty = edmProperty; // should be nested property
-
-            Queue<IEdmProperty> parentPropertiesInPath =
-                context.PropertiesInPath != null ? context.PropertiesInPath : new Queue<IEdmProperty>();
-
-            parentPropertiesInPath.Enqueue(edmProperty);
-            PropertiesInPath = parentPropertiesInPath;
-
-            if (context.NavigationSource != null)
-            {
-                IEdmNavigationProperty navigationProperty = edmProperty as IEdmNavigationProperty;
-                if (navigationProperty != null)
-                {
-                    NavigationSource = context.NavigationSource.FindNavigationTarget(navigationProperty);
-                }
-                else
-                {
-                    NavigationSource = context.NavigationSource;
-                }
-            }
         }
 
         internal IWebApiRequestMessage InternalRequest { get; private set; }
@@ -192,7 +185,7 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
                     return null;
                 }
 
-                ExpandedNavigationSelectItem expandedItem = CurrentExpandedSelectItem as ExpandedNavigationSelectItem;
+                ExpandedNavigationSelectItem expandedItem = CurrentSelectItem as ExpandedNavigationSelectItem;
                 if (expandedItem != null)
                 {
                     return expandedItem.SelectAndExpand;
@@ -210,7 +203,15 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
         /// <summary>
         /// Gets or sets the <see cref="ExpandedNavigationSelectItem"/>.
         /// </summary>
-        internal ExpandedReferenceSelectItem CurrentExpandedSelectItem { get; set; }
+        internal ExpandedReferenceSelectItem CurrentExpandedSelectItem
+        {
+            get
+            {
+                return CurrentSelectItem as ExpandedReferenceSelectItem;
+            }
+        }
+
+        internal SelectItem CurrentSelectItem { get; set; } //
 
         /// <summary>
         /// Gets or sets the <see cref="ODataQueryOptions"/>.
