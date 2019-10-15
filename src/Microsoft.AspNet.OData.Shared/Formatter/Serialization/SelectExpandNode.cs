@@ -4,6 +4,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Diagnostics.Contracts;
 using System.Linq;
 using Microsoft.AspNet.OData.Builder;
 using Microsoft.AspNet.OData.Common;
@@ -40,8 +41,8 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
             SelectedFunctions = new HashSet<IEdmFunction>();
             SelectedDynamicProperties = new HashSet<string>();
 
-            SelectedComplexProperties2 = new Dictionary<IEdmStructuralProperty, IList<PathSelectItem>>();
-            SelectedStructuralProperties2 = new Dictionary<IEdmStructuralProperty, IList<PathSelectItem>>();
+            SelectedComplexProperties2 = new Dictionary<IEdmStructuralProperty, PathSelectItem>();
+            SelectedStructuralProperties2 = new Dictionary<IEdmStructuralProperty, PathSelectItem>();
         }
 
         /// <summary>
@@ -63,8 +64,8 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
             SelectedNavigationProperties = new HashSet<IEdmNavigationProperty>(selectExpandNodeToCopy.SelectedNavigationProperties);
             SelectedStructuralProperties = new HashSet<IEdmStructuralProperty>(selectExpandNodeToCopy.SelectedStructuralProperties);
 
-            SelectedStructuralProperties2 = new Dictionary<IEdmStructuralProperty, IList<PathSelectItem>>();
-            SelectedComplexProperties2 = new Dictionary<IEdmStructuralProperty, IList<PathSelectItem>>();
+            SelectedStructuralProperties2 = new Dictionary<IEdmStructuralProperty, PathSelectItem>();
+            SelectedComplexProperties2 = new Dictionary<IEdmStructuralProperty, PathSelectItem>();
         }
 
         /// <summary>
@@ -155,7 +156,7 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
                 {
                     allNavigationProperties = new HashSet<IEdmNavigationProperty>(structuredType.NavigationProperties());
                     
-                    // Currently, the library does not support for bounded operations on complex type. 
+                    // Currently, the library does not support for bounded operations on complex type.
                     allActions = new HashSet<IEdmAction>();
                     allFunctions = new HashSet<IEdmFunction>();
                 }
@@ -166,7 +167,8 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
                     allFunctions = new HashSet<IEdmFunction>();
                 }
 
-                if (selectExpandClause == null)
+              //  IDictionary<IEdmStructuralProperty, IncludePropertySelectItem> currentLevelPropertiesInclude = null;
+                if (selectExpandClause == null || selectExpandClause.AllSelected)
                 {
                     SelectedStructuralProperties = allStructuralProperties;
                     SelectedComplexProperties = allComplexStructuralProperties;
@@ -179,6 +181,11 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
                     SelectedFunctions = allFunctions;
                     SelectAllDynamicProperties = true;
                 }
+                else
+                {
+                    BuildSelectExpand(selectExpandClause)
+                }
+                /*
                 else
                 {
                     if (selectExpandClause.AllSelected)
@@ -204,7 +211,9 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
                     }
 
                     selectItems = selectExpandClause.SelectedItems;
-                }
+                }*/
+
+             //   BuildExpand(selectExpandClause, currentLevelPropertiesInclude);
 
                 BuildExpansions(selectItems, allNavigationProperties);
 
@@ -216,11 +225,147 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
             }
         }
 
-        private void Convert(HashSet<IEdmStructuralProperty> properties, IDictionary<IEdmStructuralProperty, IList<PathSelectItem>> dics)
+        private void Convert(HashSet<IEdmStructuralProperty> properties, IDictionary<IEdmStructuralProperty, PathSelectItem> dics)
         {
             foreach (var property in properties)
             {
                 dics[property] = null;
+            }
+        }
+
+        private void BuildSelectExpand(SelectExpandClause selectExpandClause)
+        {
+            if (selectExpandClause == null)
+            {
+                return;
+            }
+
+            Dictionary<IEdmStructuralProperty, IncludePropertySelectItem> currentLevelPropertiesInclude = new Dictionary<IEdmStructuralProperty, IncludePropertySelectItem>();
+
+            IEnumerable<SelectItem> selectedItems = selectExpandClause.SelectedItems;
+            foreach (ExpandedReferenceSelectItem expandReferenceItem in selectedItems.OfType<ExpandedReferenceSelectItem>())
+            {
+                ValidatePathIsSupportedForExpand(expandReferenceItem.PathToNavigationProperty);
+
+                IList<ODataPathSegment> remainingSegments = null;
+                ODataPathSegment segment = ProcessSelectExpandPath(expandReferenceItem.PathToNavigationProperty, out remainingSegments);
+                PropertySegment firstPropertySegment = segment as PropertySegment;
+                NavigationPropertySegment firstNavigationSegment = segment as NavigationPropertySegment;
+
+                if (firstPropertySegment != null)
+                {
+                    // for example: $expand=abc/xyz
+                    Contract.Assert(remainingSegments != null);
+
+                    IncludePropertySelectItem newPropertySelectItem;
+                    if (!currentLevelPropertiesInclude.TryGetValue(firstPropertySegment.Property, out newPropertySelectItem))
+                    {
+                        newPropertySelectItem = new IncludePropertySelectItem(firstPropertySegment);
+                        currentLevelPropertiesInclude[firstPropertySegment.Property] = newPropertySelectItem;
+                    }
+
+                    newPropertySelectItem.AddSubExpandItem(remainingSegments, expandReferenceItem);
+                }
+                else
+                {
+                    // for example: $expand=xyz
+                    Contract.Assert(remainingSegments == null);
+                    Contract.Assert(firstNavigationSegment != null);
+
+                    if (expandReferenceItem is ExpandedNavigationSelectItem)
+                    {
+                        ExpandedNavigationProperties2[firstNavigationSegment.NavigationProperty] = expandReferenceItem as ExpandedNavigationSelectItem;
+                    }
+                    else
+                    {
+                        ReferencedNavigationProperties2[firstNavigationSegment.NavigationProperty] = expandReferenceItem;
+                    }
+                }
+            }
+
+            if (!selectExpandClause.AllSelected)
+            {
+                foreach (SelectItem selectItem in selectExpandClause.SelectedItems)
+                {
+                    if (selectItem is ExpandedReferenceSelectItem)
+                    {
+                        continue;
+                    }
+
+                    PathSelectItem pathSelectItem = selectItem as PathSelectItem;
+                    if (pathSelectItem != null)
+                    {
+                        ValidatePathIsSupportedForSelect(pathSelectItem.SelectedPath);
+
+                        IList<ODataPathSegment> remainingSegments = null;
+                        ODataPathSegment segment = ProcessSelectExpandPath(pathSelectItem.SelectedPath, out remainingSegments);
+                        PropertySegment firstPropertySegment = segment as PropertySegment;
+                        if (firstPropertySegment != null)
+                        {
+                            IncludePropertySelectItem newPropertySelectItem;
+                            if (!currentLevelPropertiesInclude.TryGetValue(firstPropertySegment.Property, out newPropertySelectItem))
+                            {
+                                newPropertySelectItem = new IncludePropertySelectItem(firstPropertySegment);
+                                currentLevelPropertiesInclude[firstPropertySegment.Property] = newPropertySelectItem;
+                            }
+
+                            newPropertySelectItem.AddSubSelectItem(remainingSegments, pathSelectItem);
+
+                            continue;
+                        }
+
+                        Contract.Assert(remainingSegments == null);
+
+                        NavigationPropertySegment navigationSegment = segment as NavigationPropertySegment;
+                        if (navigationSegment != null)
+                        {
+                            // for example: $select=NavigationProperty
+                            // or         : $select=NS.VipCustomer/VipNav
+                            SelectedNavigationProperties.Add(navigationSegment.NavigationProperty);
+                            continue;
+                        }
+
+                        OperationSegment operationSegment = segment as OperationSegment;
+                        if (operationSegment != null)
+                        {
+                            AddOperations(allActions, allFunctions, operationSegment);
+                            continue;
+                        }
+
+                        DynamicPathSegment dynamicPathSegment = segment as DynamicPathSegment;
+                        if (dynamicPathSegment != null)
+                        {
+                            SelectedDynamicProperties.Add(dynamicPathSegment.Identifier);
+                            continue;
+                        }
+
+                        throw new ODataException(Error.Format(SRResources.SelectionTypeNotSupported, segment.GetType().Name));
+                    }
+
+                    WildcardSelectItem wildCardSelectItem = selectItem as WildcardSelectItem;
+                    if (wildCardSelectItem != null)
+                    {
+                        SelectedStructuralProperties = allStructuralProperties;
+                        SelectedComplexProperties = allNestedProperties;
+
+                        Convert(allStructuralProperties, SelectedStructuralProperties2);
+                        Convert(allNestedProperties, SelectedComplexProperties2);
+
+                        SelectedNavigationProperties = allNavigationProperties;
+                        SelectAllDynamicProperties = true;
+                        continue;
+                    }
+
+                    NamespaceQualifiedWildcardSelectItem wildCardActionSelection = selectItem as NamespaceQualifiedWildcardSelectItem;
+                    if (wildCardActionSelection != null)
+                    {
+                        SelectedActions = allActions;
+                        SelectedFunctions = allFunctions;
+                        continue;
+                    }
+
+                    throw new ODataException(Error.Format(SRResources.SelectionTypeNotSupported, selectItem.GetType().Name));
+                }
             }
         }
 
@@ -233,7 +378,7 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
         /// Gets the list of EDM navigation properties to be included as links in the response. It is deprecated in favor of ExpandedProperties
         /// </summary>
         public ISet<IEdmNavigationProperty> SelectedNavigationProperties { get; private set; }
-
+        /*
         /// <summary>
         /// Gets the list of EDM navigation properties to be expanded in the response.
         /// </summary>
@@ -250,7 +395,7 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
 
                 return this.cachedExpandedClauses;
             }
-        }
+        }*/
 
         /// <summary>
         /// Gets the list of EDM navigation properties to be expanded in the response along with the nested query options embedded in the expand.
@@ -261,6 +406,11 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
         /// Gets the list of EDM navigation properties to be expand referenced in the response.
         /// </summary>
         public ISet<IEdmNavigationProperty> ReferencedNavigationProperties { get; private set; }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        public ISet<IEdmNavigationProperty> ExpandedNavigationProperties { get; private set; }
 
         /// <summary>
         /// Gets the list of EDM navigation properties to be expanded on ComplexTypes in the response.
@@ -300,17 +450,79 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
         /// <summary>
         /// 
         /// </summary>
-        public IDictionary<IEdmStructuralProperty, IList<PathSelectItem>> SelectedComplexProperties2 { get; private set; }
+        public IDictionary<IEdmStructuralProperty, PathSelectItem> SelectedComplexProperties2 { get; private set; }
 
         /// <summary>
         /// 
         /// </summary>
-        public IDictionary<IEdmStructuralProperty, IList<PathSelectItem>> SelectedStructuralProperties2 { get; private set; }
+        public IDictionary<IEdmStructuralProperty, PathSelectItem> SelectedStructuralProperties2 { get; private set; }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        public IDictionary<IEdmNavigationProperty, ExpandedNavigationSelectItem> ExpandedNavigationProperties2 { get; private set; }
+
+        /// <summary>
+        /// Gets the list of EDM navigation properties to be expand referenced in the response.
+        /// </summary>
+        public IDictionary<IEdmNavigationProperty, ExpandedReferenceSelectItem> ReferencedNavigationProperties2 { get; private set; }
 
         /// <summary>
         /// Gets the property corresponding to the SelectExpandNode. Null for a top-level select expand.
         /// </summary>
         internal IEdmProperty Property { get; private set; }
+
+        private void BuildExpand(SelectExpandClause selectExpandClause, IDictionary<IEdmStructuralProperty, IncludePropertySelectItem> currentLevelPropertiesInclude)
+        {
+            if (selectExpandClause == null)
+            {
+                // Select All?
+                return;
+            }
+
+        //    Dictionary<IEdmStructuralProperty, IncludePropertySelectItem> currentLevelPropertiesInclude = new Dictionary<IEdmStructuralProperty, IncludePropertySelectItem>();
+
+            IEnumerable<SelectItem> selectedItems = selectExpandClause.SelectedItems;
+            foreach (ExpandedReferenceSelectItem expandReferenceItem in selectedItems.OfType<ExpandedReferenceSelectItem>())
+            {
+                ValidatePathIsSupportedForExpand(expandReferenceItem.PathToNavigationProperty);
+
+                IList<ODataPathSegment> remainingSegments = null;
+                ODataPathSegment segment = ProcessSelectExpandPath(expandReferenceItem.PathToNavigationProperty, out remainingSegments);
+                PropertySegment firstPropertySegment = segment as PropertySegment;
+                NavigationPropertySegment firstNavigationSegment = segment as NavigationPropertySegment;
+
+                if (firstPropertySegment != null)
+                {
+                    // for example: $expand=abc/xyz
+                    Contract.Assert(remainingSegments != null);
+
+                    IncludePropertySelectItem newPropertySelectItem;
+                    if (!currentLevelPropertiesInclude.TryGetValue(firstPropertySegment.Property, out newPropertySelectItem))
+                    {
+                        newPropertySelectItem = new IncludePropertySelectItem(firstPropertySegment);
+                        currentLevelPropertiesInclude[firstPropertySegment.Property] = newPropertySelectItem;
+                    }
+
+                    newPropertySelectItem.AddSubExpandItem(remainingSegments, expandReferenceItem);
+                }
+                else
+                {
+                    // for example: $expand=xyz
+                    Contract.Assert(remainingSegments == null);
+                    Contract.Assert(firstNavigationSegment != null);
+
+                    if (expandReferenceItem is ExpandedNavigationSelectItem)
+                    {
+                        ExpandedNavigationProperties.Add(firstNavigationSegment.NavigationProperty);
+                    }
+                    else
+                    {
+                        ReferencedNavigationProperties.Add(firstNavigationSegment.NavigationProperty);
+                    }
+                }
+            }
+        }
 
         private void BuildExpansions(IEnumerable<SelectItem> selectedItems, HashSet<IEdmNavigationProperty> allNavigationProperties)
         {
@@ -320,6 +532,19 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
                 if (expandReferenceItem != null)
                 {
                     ValidatePathIsSupportedForExpand(expandReferenceItem.PathToNavigationProperty);
+
+                    IList<ODataPathSegment> remainingSegments = null;
+                    ODataPathSegment segment = ProcessSelectExpandPath(expandReferenceItem.PathToNavigationProperty, out remainingSegments);
+                    PropertySegment firstPropertySegment = segment as PropertySegment;
+                    NavigationPropertySegment firstNavigationSegment = segment as NavigationPropertySegment;
+
+                    if (firstPropertySegment != null)
+                    {
+                        Contract.Assert(remainingSegments != null);
+                        // DO Nothing here, this case will be process in $select
+                    }
+
+                    /*
                     NavigationPropertySegment navigationSegment = (NavigationPropertySegment)expandReferenceItem.PathToNavigationProperty.LastSegment;
                     IEdmNavigationProperty navigationProperty = navigationSegment.NavigationProperty;
 
@@ -372,9 +597,29 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
                                 ExpandedPropertiesOnSubChildren.Add(complexProperty, newItem);
                             }
                         }
-                    }
+                    }*/
                 }
             }
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="selectExpandClause"></param>
+        /// <returns></returns>
+        public static bool IsSelectAll(SelectExpandClause selectExpandClause)
+        {
+            if (selectExpandClause == null)
+            {
+                return true;
+            }
+
+            if (selectExpandClause.AllSelected || selectExpandClause.SelectedItems.OfType<WildcardSelectItem>().Any())
+            {
+                return true;
+            }
+
+            return false;
         }
 
         /// <summary>
@@ -433,10 +678,47 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
             HashSet<IEdmAction> allActions,
             HashSet<IEdmFunction> allFunctions)
         {
+            Dictionary<IEdmStructuralProperty, IncludePropertySelectItem> currentLevelPropertiesInclude = new Dictionary<IEdmStructuralProperty, IncludePropertySelectItem>();
+
             foreach (SelectItem selectItem in selectExpandClause.SelectedItems)
             {
-                if (selectItem is ExpandedNavigationSelectItem)
+                //if (selectItem is ExpandedNavigationSelectItem)
+                //{
+                //    continue;
+                //}
+
+                ExpandedReferenceSelectItem expandedRef = selectItem as ExpandedReferenceSelectItem;
+                if (expandedRef != null)
                 {
+                    ValidatePathIsSupportedForExpand(expandedRef.PathToNavigationProperty);
+
+                    IList<ODataPathSegment> remainingSegments = null;
+                    ODataPathSegment segment = ProcessSelectExpandPath(expandedRef.PathToNavigationProperty, out remainingSegments);
+                    PropertySegment firstPropertySegment = segment as PropertySegment;
+                    NavigationPropertySegment firstNavigationSegment = segment as NavigationPropertySegment;
+                    if (firstPropertySegment != null)
+                    {
+                        // for example: $expand=abc/xyz
+                        Contract.Assert(remainingSegments != null);
+
+                        IncludePropertySelectItem newPropertySelectItem;
+                        if (!currentLevelPropertiesInclude.TryGetValue(firstPropertySegment.Property, out newPropertySelectItem))
+                        {
+                            newPropertySelectItem = new IncludePropertySelectItem(firstPropertySegment);
+                            currentLevelPropertiesInclude[firstPropertySegment.Property] = newPropertySelectItem;
+                        }
+
+                        newPropertySelectItem.AddSubExpandItem(remainingSegments, expandedRef);
+                    }
+                    else
+                    {
+                        // for example: $expand=xyz
+                        Contract.Assert(remainingSegments == null);
+                        Contract.Assert(firstNavigationSegment != null);
+
+                        // DO nothing, will process in BuildExpansions
+                    }
+
                     continue;
                 }
 
@@ -444,23 +726,22 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
                 if (pathSelectItem != null)
                 {
                     ValidatePathIsSupportedForSelect(pathSelectItem.SelectedPath);
-                    ODataPathSegment segment = pathSelectItem.SelectedPath.LastSegment;
-
-                    NavigationPropertySegment navigationPropertySegment = segment as NavigationPropertySegment;
-                    if (navigationPropertySegment != null)
-                    {
-                        IEdmNavigationProperty navigationProperty = navigationPropertySegment.NavigationProperty;
-                        if (allNavigationProperties.Contains(navigationProperty))
-                        {
-                            SelectedNavigationProperties.Add(navigationProperty);
-                        }
-                        continue;
-                    }
 
                     IList<ODataPathSegment> remainingSegments = null;
-                    PropertySegment firstPropertySegment = ProcessSelectExpandPath(pathSelectItem.SelectedPath, out remainingSegments) as PropertySegment;
+                    ODataPathSegment segment = ProcessSelectExpandPath(pathSelectItem.SelectedPath, out remainingSegments);
+                    PropertySegment firstPropertySegment = segment as PropertySegment;
                     if (firstPropertySegment != null)
                     {
+                        IncludePropertySelectItem newPropertySelectItem;
+                        if (!currentLevelPropertiesInclude.TryGetValue(firstPropertySegment.Property, out newPropertySelectItem))
+                        {
+                            newPropertySelectItem = new IncludePropertySelectItem(firstPropertySegment);
+                            currentLevelPropertiesInclude[firstPropertySegment.Property] = newPropertySelectItem;
+                        }
+
+                        newPropertySelectItem.AddSubSelectItem(remainingSegments, pathSelectItem);
+
+                        /*
                         ODataSelectPath nextSelectPath = remainingSegments == null ?
                             new ODataSelectPath() :
                             new ODataSelectPath(remainingSegments);
@@ -499,9 +780,21 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
                             }
                         }
 
-                        value.Add(newSelectItem);
+                        value.Add(newSelectItem);*/
                         continue;
                     }
+
+                    Contract.Assert(remainingSegments == null);
+
+                    NavigationPropertySegment navigationSegment = segment as NavigationPropertySegment;
+                    if (navigationSegment != null)
+                    {
+                        // for example: $select=NavigationProperty
+                        // or         : $select=NS.VipCustomer/VipNav
+                        SelectedNavigationProperties.Add(navigationSegment.NavigationProperty);
+                        continue;
+                    }
+
 
                     /*
                     PropertySegment structuralPropertySegment = segment as PropertySegment;
@@ -560,6 +853,23 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
                 }
 
                 throw new ODataException(Error.Format(SRResources.SelectionTypeNotSupported, selectItem.GetType().Name));
+            }
+
+            foreach (var propertyToInclude in currentLevelPropertiesInclude)
+            {
+                IEdmStructuralProperty structuralProperty = propertyToInclude.Key;
+
+                bool isComplexOrCollectComplex = IsComplexOrCollectionComplex(structuralProperty);
+
+                if (!isComplexOrCollectComplex)
+                {
+                    // SelectedStructuralProperties.Add(structuralProperty);
+                    SelectedStructuralProperties2[structuralProperty] = propertyToInclude.Value.ToPathSelectItem();
+                }
+                else
+                {
+                    SelectedComplexProperties2[structuralProperty] = propertyToInclude.Value.ToPathSelectItem();
+                }
             }
         }
 
@@ -747,6 +1057,119 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
             }
 
             return false;
+        }
+    }
+
+
+    internal class IncludePropertySelectItem
+    {
+        public IncludePropertySelectItem(PropertySegment propertySegment)
+        {
+            PropertySegment = propertySegment;
+            SubSelectItems = new List<SelectItem>();
+        }
+
+        public PropertySegment PropertySegment { get; }
+
+        public IEdmNavigationSource NavigationSource { get; set; }
+
+        public FilterClause FilterClause { get; set; }
+
+        public OrderByClause OrderByClause { get; set; }
+
+        public long? TopClause { get; set; }
+
+        public long? SkipClause { get; set; }
+
+        public bool? CountClause { get; set; }
+
+        public SearchClause SearchClause { get; set; }
+
+        public ComputeClause ComputeClause { get; set; }
+
+        public IList<SelectItem> SubSelectItems { get; set; }
+
+        public PathSelectItem ToPathSelectItem()
+        {
+            bool IsSelectAll = true;
+            foreach (var item in SubSelectItems)
+            {
+                if (item is PathSelectItem)
+                {
+                    IsSelectAll = false;
+                    break;
+                }
+            }
+
+            SelectExpandClause subSelectExpandClause;
+            if (SubSelectItems.Any())
+            {
+                subSelectExpandClause = new SelectExpandClause(SubSelectItems, IsSelectAll);
+            }
+            else
+            {
+                subSelectExpandClause = null;
+            }
+            return new PathSelectItem(new ODataSelectPath(PropertySegment), NavigationSource, subSelectExpandClause,
+                FilterClause, OrderByClause, TopClause, SkipClause, CountClause, SearchClause, ComputeClause);
+        }
+
+        public void AddSubSelectItem(IList<ODataPathSegment> remainingSegments, PathSelectItem oldSelectItem)
+        {
+            if (remainingSegments == null)
+            {
+                NavigationSource = oldSelectItem.NavigationSource;
+                FilterClause = oldSelectItem.FilterOption;
+                OrderByClause = oldSelectItem.OrderByOption;
+                TopClause = oldSelectItem.TopOption;
+                SkipClause = oldSelectItem.SkipOption;
+                CountClause = oldSelectItem.CountOption;
+                SearchClause = oldSelectItem.SearchOption;
+                ComputeClause = oldSelectItem.ComputeOption;
+            }
+            else
+            {
+                SubSelectItems.Add(new PathSelectItem(new ODataSelectPath(remainingSegments), oldSelectItem.NavigationSource,
+                    oldSelectItem.SelectAndExpand, oldSelectItem.FilterOption,
+                    oldSelectItem.OrderByOption, oldSelectItem.TopOption,
+                    oldSelectItem.SkipOption, oldSelectItem.CountOption,
+                    oldSelectItem.SearchOption, oldSelectItem.ComputeOption));
+            }
+        }
+
+        public void AddSubExpandItem(IList<ODataPathSegment> remainingSegments, ExpandedReferenceSelectItem oldRefItem)
+        {
+            Contract.Assert(remainingSegments != null); // should never be null, because at least a navigation property segment in it.
+
+            ExpandedNavigationSelectItem expandedNav = oldRefItem as ExpandedNavigationSelectItem;
+            if (expandedNav != null)
+            {
+                SubSelectItems.Add(new ExpandedNavigationSelectItem(new ODataExpandPath(remainingSegments),
+                    expandedNav.NavigationSource,
+                    expandedNav.SelectAndExpand,
+                    expandedNav.FilterOption,
+                    expandedNav.OrderByOption,
+                    expandedNav.TopOption,
+                    expandedNav.SkipOption,
+                    expandedNav.CountOption,
+                    expandedNav.SearchOption,
+                    expandedNav.LevelsOption,
+                    expandedNav.ComputeOption,
+                    expandedNav.ApplyOption));
+            }
+            else
+            {
+                SubSelectItems.Add(new ExpandedReferenceSelectItem(new ODataExpandPath(remainingSegments),
+                    oldRefItem.NavigationSource,
+                    oldRefItem.FilterOption,
+                    oldRefItem.OrderByOption,
+                    oldRefItem.TopOption,
+                    oldRefItem.SkipOption,
+                    oldRefItem.CountOption,
+                    oldRefItem.SearchOption,
+                    oldRefItem.ComputeOption,
+                    oldRefItem.ApplyOption));
+            }
         }
     }
 }

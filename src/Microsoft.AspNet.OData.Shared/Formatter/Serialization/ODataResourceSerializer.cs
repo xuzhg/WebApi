@@ -669,7 +669,6 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
         }
 
 
-
         private void WriteComplexProperties(SelectExpandNode selectExpandNode,
             ResourceContext resourceContext, ODataWriter writer)
         {
@@ -817,7 +816,7 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
             Contract.Assert(resourceContext != null);
             Contract.Assert(writer != null);
 
-            IDictionary<IEdmStructuralProperty, IList<PathSelectItem>> complexProperties = selectExpandNode.SelectedComplexProperties2;
+            IDictionary<IEdmStructuralProperty, PathSelectItem> complexProperties = selectExpandNode.SelectedComplexProperties2;
 
             Contract.Assert(complexProperties != null);
 
@@ -831,10 +830,10 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
                     Name = complexProperty.Name
                 };
 
-                SelectExpandClause clause = new SelectExpandClause(complexPropertyItem.Value, false);
+                SelectExpandClause subSelectExpandClause = complexPropertyItem.Value.SelectAndExpand;
 
                 writer.WriteStart(nestedResourceInfo);
-                WriteComplexAndExpandedNavigationProperty(complexProperty, null, resourceContext, writer, false, clause);
+                WriteComplexAndExpandedNavigationProperty(complexProperty, null, resourceContext, writer, false, subSelectExpandClause);
                 writer.WriteEnd();
             }
         }
