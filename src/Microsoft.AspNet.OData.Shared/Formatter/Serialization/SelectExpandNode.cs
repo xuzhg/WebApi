@@ -637,14 +637,6 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
             SubSelectItems = new List<SelectItem>();
         }
 
-        public IncludePropertySelectItem(PropertySegment propertySegment, IEdmNavigationSource navigationSource)
-        {
-            PropertySegment = propertySegment;
-            SubSelectItems = new List<SelectItem>();
-
-            NavigationSource = navigationSource;
-        }
-
         public PropertySegment PropertySegment { get; }
 
         public IEdmNavigationSource NavigationSource { get; set; }
@@ -666,7 +658,7 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
         public IList<SelectItem> SubSelectItems { get; set; }
 
         public PathSelectItem ToPathSelectItem()
-        {
+        {/*
             bool IsSelectAll = true;
             foreach (var item in SubSelectItems)
             {
@@ -675,17 +667,29 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
                     IsSelectAll = false;
                     break;
                 }
-            }
+            }*/
 
             SelectExpandClause subSelectExpandClause;
             if (SubSelectItems.Any())
             {
+                bool IsSelectAll = true;
+                foreach (var item in SubSelectItems)
+                {
+                    // only include $expand=...., means selectAll as true
+                    if (!(item is ExpandedNavigationSelectItem || item is ExpandedReferenceSelectItem))
+                    {
+                        IsSelectAll = false;
+                        break;
+                    }
+                }
+
                 subSelectExpandClause = new SelectExpandClause(SubSelectItems, IsSelectAll);
             }
             else
             {
                 subSelectExpandClause = null;
             }
+
             return new PathSelectItem(new ODataSelectPath(PropertySegment), NavigationSource, subSelectExpandClause,
                 FilterClause, OrderByClause, TopClause, SkipClause, CountClause, SearchClause, ComputeClause);
         }
@@ -694,11 +698,7 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
         {
             if (remainingSegments == null)
             {
-                if (NavigationSource == null)
-                {
-                    NavigationSource = oldSelectItem.NavigationSource;
-                }
-
+                NavigationSource = oldSelectItem.NavigationSource;
                 FilterClause = oldSelectItem.FilterOption;
                 OrderByClause = oldSelectItem.OrderByOption;
                 TopClause = oldSelectItem.TopOption;
@@ -706,6 +706,14 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
                 CountClause = oldSelectItem.CountOption;
                 SearchClause = oldSelectItem.SearchOption;
                 ComputeClause = oldSelectItem.ComputeOption;
+
+                if (oldSelectItem.SelectAndExpand != null)
+                {
+                    foreach (var selectItem in oldSelectItem.SelectAndExpand.SelectedItems)
+                    {
+                        SubSelectItems.Add(selectItem);
+                    }
+                }
             }
             else
             {
