@@ -12,6 +12,7 @@ namespace AspNetCoreODataSample.Web.Models
         public string Region { get; set; }
 
         public IList<string> Emails { get; set; }
+
         public City RelatedCity { get; set; }
     }
 
@@ -22,6 +23,8 @@ namespace AspNetCoreODataSample.Web.Models
         public string Name { get; set; }
 
         public Address HomeAddress { get; set; }
+
+        public IList<Address> Addresses { get; set; }
 
         public Order VipOrder { get; set; }
 

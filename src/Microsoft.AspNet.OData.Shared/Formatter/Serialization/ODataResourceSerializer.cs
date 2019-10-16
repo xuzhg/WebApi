@@ -436,16 +436,22 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
             // Try to add the dynamic properties if the structural type is open.
             AppendDynamicProperties(resource, selectExpandNode, resourceContext);
 
-            IEnumerable<ODataAction> actions = CreateODataActions(selectExpandNode.SelectedActions, resourceContext);
-            foreach (ODataAction action in actions)
+            if (selectExpandNode.SelectedActions != null)
             {
-                resource.AddAction(action);
+                IEnumerable<ODataAction> actions = CreateODataActions(selectExpandNode.SelectedActions, resourceContext);
+                foreach (ODataAction action in actions)
+                {
+                    resource.AddAction(action);
+                }
             }
 
-            IEnumerable<ODataFunction> functions = CreateODataFunctions(selectExpandNode.SelectedFunctions, resourceContext);
-            foreach (ODataFunction function in functions)
+            if (selectExpandNode.SelectedFunctions != null)
             {
-                resource.AddFunction(function);
+                IEnumerable<ODataFunction> functions = CreateODataFunctions(selectExpandNode.SelectedFunctions, resourceContext);
+                foreach (ODataFunction function in functions)
+                {
+                    resource.AddFunction(function);
+                }
             }
 
             IEdmStructuredType pathType = GetODataPathType(resourceContext.SerializerContext);

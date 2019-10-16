@@ -28,8 +28,7 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
             SelectedComplexProperties = new HashSet<IEdmStructuralProperty>();
             ExpandedPropertiesOnSubChildren = new Dictionary<IEdmStructuralProperty, ExpandedNavigationSelectItem>();
             ExpandedProperties = new Dictionary<IEdmNavigationProperty, ExpandedNavigationSelectItem>();
-            SelectedActions = new HashSet<IEdmAction>();
-            SelectedFunctions = new HashSet<IEdmFunction>();
+
             SelectedDynamicProperties = new HashSet<string>();
 
             SelectedComplexesWithPath = new Dictionary<IEdmStructuralProperty, PathSelectItem>();
@@ -47,11 +46,12 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
             ExpandedPropertiesOnSubChildren = new Dictionary<IEdmStructuralProperty, ExpandedNavigationSelectItem>(selectExpandNodeToCopy.ExpandedPropertiesOnSubChildren);
             ExpandedProperties = new Dictionary<IEdmNavigationProperty, ExpandedNavigationSelectItem>(selectExpandNodeToCopy.ExpandedProperties);
 
-            SelectedActions = new HashSet<IEdmAction>(selectExpandNodeToCopy.SelectedActions);
             SelectAllDynamicProperties = selectExpandNodeToCopy.SelectAllDynamicProperties;
             SelectedComplexProperties = new HashSet<IEdmStructuralProperty>(selectExpandNodeToCopy.SelectedComplexProperties);
             SelectedDynamicProperties = new HashSet<string>(selectExpandNodeToCopy.SelectedDynamicProperties);
-            SelectedFunctions = new HashSet<IEdmFunction>(selectExpandNodeToCopy.SelectedFunctions);
+
+            SelectedActions = selectExpandNodeToCopy.SelectedActions == null ? null : new HashSet<IEdmAction>(selectExpandNodeToCopy.SelectedActions);
+            SelectedFunctions = selectExpandNodeToCopy.SelectedFunctions == null ? null : new HashSet<IEdmFunction>(selectExpandNodeToCopy.SelectedFunctions);
 
             // Selected navigation properties could be null.
             SelectedNavigationProperties = selectExpandNodeToCopy.SelectedNavigationProperties == null ?
@@ -177,12 +177,12 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
         public bool SelectAllDynamicProperties { get; private set; }
 
         /// <summary>
-        /// Gets the list of OData actions to be included in the response.
+        /// Gets the list of OData actions to be included in the response. It could be null.
         /// </summary>
         public ISet<IEdmAction> SelectedActions { get; private set; }
 
         /// <summary>
-        /// Gets the list of OData functions to be included in the response.
+        /// Gets the list of OData functions to be included in the response. It could be null.
         /// </summary>
         public ISet<IEdmFunction> SelectedFunctions { get; private set; }
 
@@ -589,12 +589,22 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
                 IEdmAction action = operation as IEdmAction;
                 if (action != null && allActions.Contains(action))
                 {
+                    if (SelectedActions == null)
+                    {
+                        SelectedActions = new HashSet<IEdmAction>();
+                    }
+
                     SelectedActions.Add(action);
                 }
 
                 IEdmFunction function = operation as IEdmFunction;
                 if (function != null && allFunctions.Contains(function))
                 {
+                    if (SelectedFunctions == null)
+                    {
+                        SelectedFunctions = new HashSet<IEdmFunction>();
+                    }
+
                     SelectedFunctions.Add(function);
                 }
             }
