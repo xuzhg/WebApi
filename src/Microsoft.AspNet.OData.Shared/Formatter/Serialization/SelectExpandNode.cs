@@ -647,6 +647,14 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
             SubSelectItems = new List<SelectItem>();
         }
 
+        public IncludePropertySelectItem(PropertySegment propertySegment, IEdmNavigationSource navigationSource)
+        {
+            PropertySegment = propertySegment;
+            SubSelectItems = new List<SelectItem>();
+
+            NavigationSource = navigationSource;
+        }
+
         public PropertySegment PropertySegment { get; }
 
         public IEdmNavigationSource NavigationSource { get; set; }
@@ -700,6 +708,13 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
                 subSelectExpandClause = null;
             }
 
+            if (subSelectExpandClause == null && FilterClause == null &&
+                OrderByClause == null && TopClause == null && SkipClause == null && CountClause == null &&
+                SearchClause == null && ComputeClause == null)
+            {
+                return null;
+            }
+
             return new PathSelectItem(new ODataSelectPath(PropertySegment), NavigationSource, subSelectExpandClause,
                 FilterClause, OrderByClause, TopClause, SkipClause, CountClause, SearchClause, ComputeClause);
         }
@@ -708,7 +723,11 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
         {
             if (remainingSegments == null)
             {
-                NavigationSource = oldSelectItem.NavigationSource;
+                if (oldSelectItem.NavigationSource != null)
+                {
+                    NavigationSource = oldSelectItem.NavigationSource; // from ODL, it's null?
+                }
+
                 FilterClause = oldSelectItem.FilterOption;
                 OrderByClause = oldSelectItem.OrderByOption;
                 TopClause = oldSelectItem.TopOption;
@@ -724,6 +743,9 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
                         SubSelectItems.Add(selectItem);
                     }
                 }
+
+                // Be noted: "$select=abc($top=2),abc($skip=2)" is not allowed in ODL library.
+                // So, don't worry about the previous setting overrided by other same path.
             }
             else
             {
@@ -737,7 +759,8 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
 
         public void AddSubExpandItem(IList<ODataPathSegment> remainingSegments, ExpandedReferenceSelectItem oldRefItem)
         {
-            Contract.Assert(remainingSegments != null); // should never be null, because at least a navigation property segment in it.
+            // remainingSegments should never be null, because at least a navigation property segment in it.
+            Contract.Assert(remainingSegments != null);
 
             ExpandedNavigationSelectItem expandedNav = oldRefItem as ExpandedNavigationSelectItem;
             if (expandedNav != null)

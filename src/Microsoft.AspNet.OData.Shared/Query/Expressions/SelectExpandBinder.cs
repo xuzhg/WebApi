@@ -531,13 +531,6 @@ namespace Microsoft.AspNet.OData.Query.Expressions
             // source => new Wrapper { Container =  new PropertyContainer { .... } }
             if (selectExpandClause != null)
             {
-                //Dictionary<IEdmNavigationProperty, ExpandedReferenceSelectItem> propertiesToExpand = GetPropertiesToExpandInQuery(selectExpandClause);
-                // ISet<IEdmStructuralProperty> autoSelectedProperties;
-
-                // ISet<IEdmStructuralProperty> propertiesToInclude = GetPropertiesToIncludeInQuery(selectExpandClause, structuredType, navigationSource, _model, out autoSelectedProperties);
-
-                // Dictionary<IEdmStructuralProperty, PathSelectItem> propertiesToInclude = GetPropertiesToIncludeInQuery(selectExpandClause, structuredType, navigationSource, _model, out autoSelectedProperties);
-
                 IDictionary<IEdmStructuralProperty, PathSelectItem> propertiesToInclude;
                 IDictionary<IEdmNavigationProperty, ExpandedReferenceSelectItem> propertiesToExpand;
 
@@ -1327,7 +1320,7 @@ namespace Microsoft.AspNet.OData.Query.Expressions
                 return;
             }
 
-            Dictionary<IEdmStructuralProperty, IncludePropertySelectItem> currentLevelPropertiesInclude = new Dictionary<IEdmStructuralProperty, IncludePropertySelectItem>();
+            var currentLevelPropertiesInclude = new Dictionary<IEdmStructuralProperty, IncludePropertySelectItem>();
 
             IEnumerable<SelectItem> selectedItems = selectExpandClause.SelectedItems;
             foreach (ExpandedReferenceSelectItem expandedItem in selectedItems.OfType<ExpandedReferenceSelectItem>())
@@ -1336,18 +1329,15 @@ namespace Microsoft.AspNet.OData.Query.Expressions
                 ODataPathSegment firstPropertySegment = expandedItem.PathToNavigationProperty.ProcessExpandPath(out remainingSegments);
 
                 PropertySegment firstStructuralPropertySegment = firstPropertySegment as PropertySegment;
-                NavigationPropertySegment firstNavigationPropertySegment = firstPropertySegment as NavigationPropertySegment;
-
                 if (firstStructuralPropertySegment != null)
                 {
-                    // for example: $expand=abc/xyz
+                    // for example: $expand=abc/xyz, the remaining segments should never be null because at least the last navigation segment is there.
                     Contract.Assert(remainingSegments != null);
 
-                    // skip the nav
                     IncludePropertySelectItem newPropertySelectItem;
                     if (!currentLevelPropertiesInclude.TryGetValue(firstStructuralPropertySegment.Property, out newPropertySelectItem))
                     {
-                        newPropertySelectItem = new IncludePropertySelectItem(firstStructuralPropertySegment);
+                        newPropertySelectItem = new IncludePropertySelectItem(firstStructuralPropertySegment, navigationSource);
                         currentLevelPropertiesInclude[firstStructuralPropertySegment.Property] = newPropertySelectItem;
                     }
 
@@ -1357,6 +1347,8 @@ namespace Microsoft.AspNet.OData.Query.Expressions
                 {
                     // for example: $expand=xyz
                     Contract.Assert(remainingSegments == null);
+
+                    NavigationPropertySegment firstNavigationPropertySegment = firstPropertySegment as NavigationPropertySegment;
                     Contract.Assert(firstNavigationPropertySegment != null);
 
                     // Needn't to add this navigation property into the include property.
@@ -1367,27 +1359,29 @@ namespace Microsoft.AspNet.OData.Query.Expressions
 
             if (!IsSelectAll(selectExpandClause))
             {
+                // if selectAll equals to true, we use the instance directly, not use the wrapper. So, we only process for "IsSelectAll == false".
                 foreach (var pathSelectItem in selectedItems.OfType<PathSelectItem>())
                 {
                     IList<ODataPathSegment> remainingSegments;
                     ODataPathSegment firstPropertySegment = pathSelectItem.SelectedPath.ProcessSelectPath(out remainingSegments);
+
                     PropertySegment firstSturucturalPropertySegment = firstPropertySegment as PropertySegment;
                     Contract.Assert(firstSturucturalPropertySegment != null);
 
                     IncludePropertySelectItem newPropertySelectItem;
                     if (!currentLevelPropertiesInclude.TryGetValue(firstSturucturalPropertySegment.Property, out newPropertySelectItem))
                     {
-                        newPropertySelectItem = new IncludePropertySelectItem(firstSturucturalPropertySegment);
+                        newPropertySelectItem = new IncludePropertySelectItem(firstSturucturalPropertySegment, navigationSource);
                         currentLevelPropertiesInclude[firstSturucturalPropertySegment.Property] = newPropertySelectItem;
                     }
 
                     newPropertySelectItem.AddSubSelectItem(remainingSegments, pathSelectItem);
                 }
 
+                // add keys
                 IEdmEntityType entityType = elementType as IEdmEntityType;
                 if (entityType != null)
                 {
-                    // add keys
                     foreach (IEdmStructuralProperty keyProperty in entityType.Key())
                     {
                         if (!currentLevelPropertiesInclude.Keys.Contains(keyProperty))
@@ -1414,189 +1408,6 @@ namespace Microsoft.AspNet.OData.Query.Expressions
             foreach (var propertiesInclude in currentLevelPropertiesInclude)
             {
                 propertiesToInclude[propertiesInclude.Key] = propertiesInclude.Value == null ? null : propertiesInclude.Value.ToPathSelectItem();
-            }
-        }
-
-        private static Dictionary<IEdmNavigationProperty, ExpandedReferenceSelectItem> GetPropertiesToExpandInQuery(SelectExpandClause selectExpandClause)
-        {
-            Dictionary<IEdmNavigationProperty, ExpandedReferenceSelectItem> properties = new Dictionary<IEdmNavigationProperty, ExpandedReferenceSelectItem>();
-
-            foreach (SelectItem selectItem in selectExpandClause.SelectedItems)
-            {
-                ExpandedReferenceSelectItem expandItem = selectItem as ExpandedReferenceSelectItem;
-                if (expandItem != null)
-                {
-                    expandItem.PathToNavigationProperty.ValidatePath();
-
-                    NavigationPropertySegment navigationSegment = expandItem.PathToNavigationProperty.LastSegment as NavigationPropertySegment;
-                    if (navigationSegment == null)
-                    {
-                        throw new ODataException(SRResources.UnsupportedSelectExpandPath);
-                    }
-
-                    properties[navigationSegment.NavigationProperty] = expandItem;
-                }
-            }
-
-            return properties;
-        }
-
-        internal static Dictionary<IEdmStructuralProperty, PathSelectItem> GetPropertiesToIncludeInQuery(
-            SelectExpandClause selectExpandClause, IEdmStructuredType structuredType,
-            IEdmNavigationSource navigationSource, IEdmModel model, out ISet<IEdmStructuralProperty> autoSelectedProperties)
-        {
-            IEdmEntityType entityType = structuredType as IEdmEntityType;
-
-            autoSelectedProperties = new HashSet<IEdmStructuralProperty>();
-
-            Dictionary<IEdmStructuralProperty, IncludePropertySelectItem> currentLevelPropertiesInclude = new Dictionary<IEdmStructuralProperty, IncludePropertySelectItem>();
-
-            IEnumerable<SelectItem> selectedItems = selectExpandClause.SelectedItems;
-            if (!IsSelectAll(selectExpandClause))
-            {
-                // only select requested properties and keys.
-                foreach (PathSelectItem pathSelectItem in selectedItems.OfType<PathSelectItem>())
-                {
-                    pathSelectItem.SelectedPath.ValidatePath();
-
-                    /*
-                    PropertySegment structuralPropertySegment = pathSelectItem.SelectedPath.LastSegment as PropertySegment;
-                    if (structuralPropertySegment != null)
-                    {
-                        propertiesToInclude[structuralPropertySegment.Property] = pathSelectItem;
-                    }*/
-
-                    IList<ODataPathSegment> remainingSegments;
-                    ODataPathSegment firstPropertySegment = pathSelectItem.SelectedPath.ProcessSelectPath(out remainingSegments);
-                    PropertySegment firstSturucturalPropertySegment = firstPropertySegment as PropertySegment;
-                    Contract.Assert(firstSturucturalPropertySegment != null);
-
-                    IncludePropertySelectItem newPropertySelectItem;
-                    if (!currentLevelPropertiesInclude.TryGetValue(firstSturucturalPropertySegment.Property, out newPropertySelectItem))
-                    {
-                        newPropertySelectItem = new IncludePropertySelectItem(firstSturucturalPropertySegment);
-                        currentLevelPropertiesInclude[firstSturucturalPropertySegment.Property] = newPropertySelectItem;
-                    }
-                    newPropertySelectItem.AddSubSelectItem(remainingSegments, pathSelectItem);
-                }
-
-                foreach (ExpandedReferenceSelectItem expandedItem in selectedItems.OfType<ExpandedReferenceSelectItem>())
-                {
-                    IList<ODataPathSegment> remainingSegments;
-                    ODataPathSegment firstPropertySegment = expandedItem.PathToNavigationProperty.ProcessExpandPath(out remainingSegments);
-                    PropertySegment firstSturucturalPropertySegment = firstPropertySegment as PropertySegment;
-
-                    if(firstSturucturalPropertySegment != null)
-                    {
-                        // skip the nav
-                        IncludePropertySelectItem newPropertySelectItem;
-                        if (!currentLevelPropertiesInclude.TryGetValue(firstSturucturalPropertySegment.Property, out newPropertySelectItem))
-                        {
-                            newPropertySelectItem = new IncludePropertySelectItem(firstSturucturalPropertySegment);
-                            currentLevelPropertiesInclude[firstSturucturalPropertySegment.Property] = newPropertySelectItem;
-                        }
-                        newPropertySelectItem.AddSubExpandItem(remainingSegments, expandedItem);
-                    }
-                }
-
-                /*
-                foreach (ExpandedNavigationSelectItem expandedNavigationSelectItem in selectedItems.OfType<ExpandedNavigationSelectItem>())
-                {
-                    foreach (var segment in expandedNavigationSelectItem.PathToNavigationProperty)
-                    {
-                        PropertySegment propertySegment = segment as PropertySegment;
-                        if (propertySegment != null &&
-                            structuredType.Properties().Contains(propertySegment.Property))
-                        {
-                            propertiesToInclude[propertySegment.Property] = null;
-                            break;
-                        }
-                    }
-                }
-                */
-                
-
-                if (entityType != null)
-                {
-                    // add keys
-                    foreach (IEdmStructuralProperty keyProperty in entityType.Key())
-                    {
-                        if (!currentLevelPropertiesInclude.Keys.Contains(keyProperty))
-                        {
-                            autoSelectedProperties.Add(keyProperty);
-                        }
-                    }
-                }
-
-                // add concurrency properties, if not added
-                if (navigationSource != null && model != null)
-                {
-                    IEnumerable<IEdmStructuralProperty> concurrencyProperties = model.GetConcurrencyProperties(navigationSource);
-                    foreach (IEdmStructuralProperty concurrencyProperty in concurrencyProperties)
-                    {
-                        if (!currentLevelPropertiesInclude.Keys.Contains(concurrencyProperty))
-                        {
-                            autoSelectedProperties.Add(concurrencyProperty);
-                        }
-                    }
-                }
-            }
-
-            Dictionary<IEdmStructuralProperty, PathSelectItem> propertiesToInclude = new Dictionary<IEdmStructuralProperty, PathSelectItem>();
-            foreach (var propertiesInclude in currentLevelPropertiesInclude)
-            {
-                propertiesToInclude[propertiesInclude.Key] = propertiesInclude.Value.ToPathSelectItem();
-            }
-
-            return propertiesToInclude;
-        }
-
-       
-
-        private static PathSelectItem CreateSelecItem(PathSelectItem oldSelectItem, IList<ODataPathSegment> segments)
-        {
-            return new PathSelectItem(segments == null ? new ODataSelectPath() : new ODataSelectPath(segments),
-                oldSelectItem.NavigationSource,
-                oldSelectItem.SelectAndExpand,
-                oldSelectItem.FilterOption,
-                oldSelectItem.OrderByOption,
-                oldSelectItem.TopOption,
-                oldSelectItem.SkipOption,
-                oldSelectItem.CountOption,
-                oldSelectItem.SearchOption,
-                oldSelectItem.ComputeOption);
-        }
-
-        private static ExpandedReferenceSelectItem CreateExpandItem(ExpandedReferenceSelectItem oldRefItem, IList<ODataPathSegment> segments)
-        {
-            ExpandedNavigationSelectItem expandedNav = oldRefItem as ExpandedNavigationSelectItem;
-            if (expandedNav != null)
-            {
-                return new ExpandedNavigationSelectItem(segments == null ? new ODataExpandPath() : new ODataExpandPath(segments),
-                    expandedNav.NavigationSource,
-                    expandedNav.SelectAndExpand,
-                    expandedNav.FilterOption,
-                    expandedNav.OrderByOption,
-                    expandedNav.TopOption,
-                    expandedNav.SkipOption,
-                    expandedNav.CountOption,
-                    expandedNav.SearchOption,
-                    expandedNav.LevelsOption,
-                    expandedNav.ComputeOption,
-                    expandedNav.ApplyOption);
-            }
-            else
-            {
-                return new ExpandedReferenceSelectItem(segments == null ? new ODataExpandPath() : new ODataExpandPath(segments),
-                    oldRefItem.NavigationSource,
-                    oldRefItem.FilterOption,
-                    oldRefItem.OrderByOption,
-                    oldRefItem.TopOption,
-                    oldRefItem.SkipOption,
-                    oldRefItem.CountOption,
-                    oldRefItem.SearchOption,
-                    oldRefItem.ComputeOption,
-                    oldRefItem.ApplyOption);
             }
         }
 
