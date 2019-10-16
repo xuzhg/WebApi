@@ -20,8 +20,7 @@ namespace Microsoft.AspNet.OData.Query.Expressions
     /// <summary>
     /// Applies the given <see cref="SelectExpandQueryOption"/> to the given <see cref="IQueryable"/>.
     /// </summary>
-    [SuppressMessage("Microsoft.Maintainability", "CA1506:AvoidExcessiveClassCoupling",
-        Justification = "Class coupling acceptable.")]
+    [SuppressMessage("Microsoft.Maintainability", "CA1506:AvoidExcessiveClassCoupling", Justification = "Class coupling acceptable.")]
     internal class SelectExpandBinder
     {
         private SelectExpandQueryOption _selectExpandQuery;
@@ -45,8 +44,7 @@ namespace Microsoft.AspNet.OData.Query.Expressions
             _settings = settings;
         }
 
-        public static IQueryable Bind(IQueryable queryable, ODataQuerySettings settings,
-            SelectExpandQueryOption selectExpandQuery)
+        public static IQueryable Bind(IQueryable queryable, ODataQuerySettings settings, SelectExpandQueryOption selectExpandQuery)
         {
             Contract.Assert(queryable != null);
 
@@ -54,8 +52,7 @@ namespace Microsoft.AspNet.OData.Query.Expressions
             return binder.Bind(queryable);
         }
 
-        public static object Bind(object entity, ODataQuerySettings settings,
-            SelectExpandQueryOption selectExpandQuery)
+        public static object Bind(object entity, ODataQuerySettings settings, SelectExpandQueryOption selectExpandQuery)
         {
             Contract.Assert(entity != null);
 
@@ -150,227 +147,25 @@ namespace Microsoft.AspNet.OData.Query.Expressions
             return Expression.Constant(property.Name);
         }
 
-        internal Expression CreatePropertyNameExpression(IEdmStructuredType elementType, IEdmProperty property, PathSelectItem pathSelectItem, Expression source)
+        internal Expression CreatePropertyValueExpression(IEdmStructuredType elementType, IEdmProperty property, Expression source, FilterClause filterClause)
         {
             Contract.Assert(elementType != null);
             Contract.Assert(property != null);
             Contract.Assert(source != null);
 
-            IEdmStructuredType declaringType = property.DeclaringType as IEdmStructuredType;
-
-            Contract.Assert(declaringType != null, "Unstructured types cannot be projected.");
-
-            // Starting from current element type
-            IEdmStructuredType currentType = elementType;
-
-            foreach (ODataPathSegment segment in pathSelectItem.SelectedPath)
+            // Expression: source = source as propertyDeclaringType
+            if (elementType != property.DeclaringType)
             {
-                // Only include "PropertySegment" and "TypeSegment", it's verified above.
-                Contract.Assert(segment is PropertySegment || segment is TypeSegment);
-                PropertySegment propertySegment = segment as PropertySegment;
-                TypeSegment typeSegment = segment as TypeSegment;
-
-                if (typeSegment != null)
-                {
-                    // It's a type cast, for example: ~/Customers?$select=NS.VipCustomer/VipProperty
-                    if (currentType != typeSegment.EdmType)
-                    {
-                        Type castType = EdmLibHelpers.GetClrType(typeSegment.EdmType, _model);
-                        if (castType == null)
-                        {
-                            throw new ODataException(Error.Format(SRResources.MappingDoesNotContainResourceType, typeSegment.EdmType.FullTypeName()));
-                        }
-
-                        source = Expression.TypeAs(source, castType);
-                        currentType = typeSegment.EdmType as IEdmStructuredType;
-                    }
-                }
-                else
-                {
-                    Contract.Assert(propertySegment != null);
-
-                    IEdmProperty propertyInPath = propertySegment.Property;
-                    string currentPropertyName = EdmLibHelpers.GetClrPropertyName(propertyInPath, _model);
-                    declaringType = propertyInPath.DeclaringType;
-                    if (_settings.HandleNullPropagation == HandleNullPropagationOption.True)
-                    {
-                        // create expression similar to: 'source == null ? null : propertyValue'
-                        if (declaringType != currentType)
-                        {
-                            Type castType = EdmLibHelpers.GetClrType(property.DeclaringType, _model);
-                            if (castType == null)
-                            {
-                                throw new ODataException(Error.Format(SRResources.MappingDoesNotContainResourceType,
-                                    property.DeclaringType.FullTypeName()));
-                            }
-
-                            source = Expression.TypeAs(source, castType);
-                        }
-                        Expression propertyExpression = Expression.Property(source, currentPropertyName);
-                        Type nullablePropType = TypeHelper.ToNullable(propertyExpression.Type);
-
-                        source = Expression.Condition(
-                            test: Expression.Equal(propertyExpression, Expression.Constant(value: null)),
-                            ifTrue: Expression.Constant(value: null, type: nullablePropType),
-                            ifFalse: propertyExpression);
-                    }
-                    else
-                    {
-                        source = Expression.Property(source, currentPropertyName);
-                    }
-
-                    currentType = propertyInPath.Type.ToStructuredType();
-                }
-            }
-
-                // derived navigation property using cast
-                if (elementType != declaringType)
-            {
-                Type originalType = EdmLibHelpers.GetClrType(elementType, _model);
-                Type castType = EdmLibHelpers.GetClrType(declaringType, _model);
+                Type castType = EdmLibHelpers.GetClrType(property.DeclaringType, _model);
                 if (castType == null)
                 {
-                    throw new ODataException(Error.Format(SRResources.MappingDoesNotContainResourceType, declaringType.FullTypeName()));
+                    throw new ODataException(Error.Format(SRResources.MappingDoesNotContainResourceType, property.DeclaringType.FullTypeName()));
                 }
 
-                if (!castType.IsAssignableFrom(originalType))
-                {
-                    // Expression
-                    //          source is navigationPropertyDeclaringType ? propertyName : null
-                    return Expression.Condition(
-                        test: Expression.TypeIs(source, castType),
-                        ifTrue: Expression.Constant(property.Name),
-                        ifFalse: Expression.Constant(null, typeof(string)));
-                }
+                source = Expression.TypeAs(source, castType);
             }
 
-            // Expression
-            //          "propertyName"
-            return Expression.Constant(property.Name);
-        }
-
-        internal Expression CreatePropertyValueExpression(IEdmStructuredType elementType, IEdmProperty property, Expression source)
-        {
-            Contract.Assert(elementType != null);
-            Contract.Assert(property != null);
-            Contract.Assert(source != null);
-
-            return CreatePropertyValueExpressionWithFilter(elementType, property, source, null, null);
-        }
-
-        internal Expression CreatePropertyValueExpressionWithFilter(IEdmStructuredType elementType, IEdmProperty property,
-            Expression source, PathSelectItem pathSelectItem)
-        {
-            Contract.Assert(elementType != null);
-            Contract.Assert(property != null);
-            Contract.Assert(source != null);
-
-            FilterClause filterClause = pathSelectItem != null ? pathSelectItem.FilterOption : null;
-            ODataPath path = pathSelectItem != null ? pathSelectItem.SelectedPath : null;
-
-            return CreatePropertyValueExpressionWithFilter(elementType, property, source, filterClause, path);
-        }
-
-        internal Expression CreatePropertyValueExpressionWithFilter(IEdmStructuredType elementType, IEdmProperty property,
-            Expression source, ExpandedReferenceSelectItem expandItem)
-        {
-            Contract.Assert(elementType != null);
-            Contract.Assert(property != null);
-            Contract.Assert(source != null);
-
-            FilterClause filterClause = expandItem != null ? expandItem.FilterOption : null;
-            ODataPath path = expandItem != null ? expandItem.PathToNavigationProperty : null;
-
-            return CreatePropertyValueExpressionWithFilter(elementType, property, source, filterClause, path);
-        }
-
-        internal Expression CreatePropertyValueExpressionWithFilter(IEdmStructuredType elementType, IEdmProperty property, Expression source,
-            FilterClause filterClause, ODataPath path)
-        {
-          //  Contract.Assert(elementType != null);
-            Contract.Assert(property != null);
-            Contract.Assert(source != null);
-
-            IEdmStructuredType declaringType;
-            IEdmStructuredType currentType = elementType;
-            if (path != null)
-            {
-                foreach (ODataPathSegment segment in path)
-                {
-                    string currentProperty = String.Empty;
-                    PropertySegment propertyAccessPathSegment =
-                         segment as PropertySegment;
-                    if (propertyAccessPathSegment != null)
-                    {
-                        IEdmProperty propertyInPath = propertyAccessPathSegment.Property;
-                        if (propertyInPath == property)
-                        {
-                            continue; // skip the last property
-                        }
-
-                        currentProperty = EdmLibHelpers.GetClrPropertyName(propertyInPath, _model);
-                        declaringType = propertyInPath.DeclaringType;
-                        Contract.Assert(!String.IsNullOrEmpty(currentProperty), "Property name could not be found on the model.");
-                        if (_settings.HandleNullPropagation == HandleNullPropagationOption.True)
-                        {
-                            // create expression similar to: 'source == null ? null : propertyValue'
-                            if (declaringType != currentType)
-                            {
-                                Type castType = EdmLibHelpers.GetClrType(property.DeclaringType, _model);
-                                if (castType == null)
-                                {
-                                    throw new ODataException(Error.Format(SRResources.MappingDoesNotContainResourceType,
-                                        property.DeclaringType.FullTypeName()));
-                                }
-
-                                source = Expression.TypeAs(source, castType);
-                            }
-                            Expression propertyExpression = Expression.Property(source, currentProperty);
-                            Type nullablePropType = TypeHelper.ToNullable(propertyExpression.Type);
-
-                            source = Expression.Condition(
-                                test: Expression.Equal(propertyExpression, Expression.Constant(value: null)),
-                                ifTrue: Expression.Constant(value: null, type: nullablePropType),
-                                ifFalse: propertyExpression);
-                        }
-                        else
-                        {
-                            source = Expression.Property(source, currentProperty);
-                        }
-
-                        currentType = propertyInPath.Type.ToStructuredType();
-                    }
-                    else
-                    {
-                        TypeSegment typeSegment = segment as TypeSegment;
-                        if (typeSegment != null)
-                        {
-                            Type castType = EdmLibHelpers.GetClrType(typeSegment.EdmType, _model);
-                            source = Expression.TypeAs(source, castType);
-                            currentType = typeSegment.EdmType as IEdmStructuredType;
-                        }
-                    }
-                }
-            }
-
-            Type propertyDeclaringType = EdmLibHelpers.GetClrType(property.DeclaringType, _model);
-
-            // derived property using cast
-            if (currentType != null) // currentType maybe equals to null for select on primitive property
-            {
-                if (currentType != property.DeclaringType)
-                {
-                    Type castType = EdmLibHelpers.GetClrType(property.DeclaringType, _model);
-                    if (castType == null)
-                    {
-                        throw new ODataException(Error.Format(SRResources.MappingDoesNotContainResourceType,
-                            property.DeclaringType.FullTypeName()));
-                    }
-
-                    source = Expression.TypeAs(source, castType);
-                }
-            }
-
+            // Expression:  source.Property
             string propertyName = EdmLibHelpers.GetClrPropertyName(property, _model);
             PropertyInfo propertyInfo = source.Type.GetProperty(propertyName);
             Expression propertyValue = Expression.Property(source, propertyInfo);
@@ -385,8 +180,7 @@ namespace Microsoft.AspNet.OData.Query.Expressions
                 Type clrElementType = EdmLibHelpers.GetClrType(edmElementType, _model);
                 if (clrElementType == null)
                 {
-                    throw new ODataException(Error.Format(SRResources.MappingDoesNotContainResourceType,
-                        edmElementType.FullName()));
+                    throw new ODataException(Error.Format(SRResources.MappingDoesNotContainResourceType, edmElementType.FullName()));
                 }
 
                 Expression filterResult = nullablePropertyValue;
@@ -414,8 +208,7 @@ namespace Microsoft.AspNet.OData.Query.Expressions
                     LambdaExpression filterLambdaExpression = FilterBinder.Bind(null, filterClause, clrElementType, _context, querySettings) as LambdaExpression;
                     if (filterLambdaExpression == null)
                     {
-                        throw new ODataException(Error.Format(SRResources.ExpandFilterExpressionNotLambdaExpression,
-                            property.Name, "LambdaExpression"));
+                        throw new ODataException(Error.Format(SRResources.ExpandFilterExpressionNotLambdaExpression, property.Name, "LambdaExpression"));
                     }
 
                     ParameterExpression filterParameter = filterLambdaExpression.Parameters.First();
@@ -533,15 +326,16 @@ namespace Microsoft.AspNet.OData.Query.Expressions
             {
                 IDictionary<IEdmStructuralProperty, PathSelectItem> propertiesToInclude;
                 IDictionary<IEdmNavigationProperty, ExpandedReferenceSelectItem> propertiesToExpand;
+                ISet<IEdmStructuralProperty> autoSelectedProperties;
 
-                GetProperties(_model, structuredType, navigationSource, selectExpandClause, out propertiesToInclude, out propertiesToExpand);
+                GetSelectExpandProperties(_model, structuredType, navigationSource, selectExpandClause, out propertiesToInclude, out propertiesToExpand, out autoSelectedProperties);
 
                 bool isSelectingOpenTypeSegments = GetSelectsOpenTypeSegments(selectExpandClause, structuredType);
 
-                if (propertiesToExpand.Count > 0 || propertiesToInclude.Count > 0 || isSelectingOpenTypeSegments)
+                if (propertiesToExpand.Count > 0 || propertiesToInclude.Count > 0 || autoSelectedProperties.Count > 0 || isSelectingOpenTypeSegments)
                 {
                     Expression propertyContainerCreation =
-                        BuildPropertyContainer(structuredType, source, propertiesToExpand, propertiesToInclude, isSelectingOpenTypeSegments);
+                        BuildPropertyContainer(source, structuredType, propertiesToExpand, propertiesToInclude, autoSelectedProperties, isSelectingOpenTypeSegments);
 
                     if (propertyContainerCreation != null)
                     {
@@ -559,12 +353,129 @@ namespace Microsoft.AspNet.OData.Query.Expressions
             return Expression.MemberInit(Expression.New(wrapperType), wrapperTypeMemberAssignments);
         }
 
-        private static void SetMemberAssignment(Type wrapperType, string propertyName, Expression propertyValue, IList<MemberAssignment> members)
+        /// <summary>
+        /// Gets the $select and $expand properties from the given <see cref="SelectExpandClause"/>
+        /// </summary>
+        /// <param name="model">The Edm model.</param>
+        /// <param name="elementType">The current structural type.</param>
+        /// <param name="navigationSource">The current navigation source.</param>
+        /// <param name="selectExpandClause">The given select and expand clause.</param>
+        /// <param name="propertiesToInclude">The out properties to include at current level.</param>
+        /// <param name="propertiesToExpand">The out properties to expand at current level.</param>
+        /// <param name="autoSelectedProperties">The out auto selected properties to include at current level.</param>
+        internal static void GetSelectExpandProperties(IEdmModel model, IEdmStructuredType elementType, IEdmNavigationSource navigationSource,
+            SelectExpandClause selectExpandClause,
+            out IDictionary<IEdmStructuralProperty, PathSelectItem> propertiesToInclude,
+            out IDictionary<IEdmNavigationProperty, ExpandedReferenceSelectItem> propertiesToExpand,
+            out ISet<IEdmStructuralProperty> autoSelectedProperties)
         {
-            PropertyInfo wrapperPropertyInfo = wrapperType.GetProperty(propertyName);
-            Contract.Assert(wrapperPropertyInfo != null);
+            Contract.Assert(selectExpandClause != null);
 
-            members.Add(Expression.Bind(wrapperPropertyInfo, propertyValue));
+            // Properties to include includes all the properties selected or in the middle of a $select and $expand path.
+            // for example: "$expand=abc/xyz/nav", "abc" and "xyz" are the middle properties that should be included.
+            // meanwhile, "nav" is the property that should be expanded.
+            propertiesToInclude = new Dictionary<IEdmStructuralProperty, PathSelectItem>();
+            propertiesToExpand = new Dictionary<IEdmNavigationProperty, ExpandedReferenceSelectItem>();
+            autoSelectedProperties = new HashSet<IEdmStructuralProperty>();
+
+            var currentLevelPropertiesInclude = new Dictionary<IEdmStructuralProperty, SelectExpandIncludeProperty>();
+            IEnumerable<SelectItem> selectedItems = selectExpandClause.SelectedItems;
+            foreach (ExpandedReferenceSelectItem expandedItem in selectedItems.OfType<ExpandedReferenceSelectItem>())
+            {
+                // Verify and process the $expand path
+                IList<ODataPathSegment> remainingSegments;
+                ODataPathSegment firstPropertySegment = expandedItem.PathToNavigationProperty.ProcessExpandPath(out remainingSegments);
+
+                PropertySegment firstStructuralPropertySegment = firstPropertySegment as PropertySegment;
+                if (firstStructuralPropertySegment != null)
+                {
+                    // for example: $expand=abc/xyz, the remaining segments should never be null because at least the last navigation segment is there.
+                    Contract.Assert(remainingSegments != null);
+
+                    SelectExpandIncludeProperty newPropertySelectItem;
+                    if (!currentLevelPropertiesInclude.TryGetValue(firstStructuralPropertySegment.Property, out newPropertySelectItem))
+                    {
+                        newPropertySelectItem = new SelectExpandIncludeProperty(firstStructuralPropertySegment, navigationSource);
+                        currentLevelPropertiesInclude[firstStructuralPropertySegment.Property] = newPropertySelectItem;
+                    }
+
+                    newPropertySelectItem.AddSubExpandItem(remainingSegments, expandedItem);
+                }
+                else
+                {
+                    // for example: $expand=xyz, if we couldn't find a structural property in the path, it means we get the last navigation segment.
+                    // So, the remaing segments should be null and the last segment should be "NavigationPropertySegment".
+                    Contract.Assert(remainingSegments == null);
+
+                    NavigationPropertySegment firstNavigationPropertySegment = firstPropertySegment as NavigationPropertySegment;
+                    Contract.Assert(firstNavigationPropertySegment != null);
+
+                    // Needn't add this navigation property into the include property.
+                    // Because this navigation property will be included separately.
+                    propertiesToExpand[firstNavigationPropertySegment.NavigationProperty] = expandedItem;
+                }
+            }
+
+            if (!IsSelectAll(selectExpandClause))
+            {
+                // We should skip the below steps for "SelectAll".
+                // because if selectAll equals to true, we use the instance (the object) directly, not use the wrapper.
+                foreach (var pathSelectItem in selectedItems.OfType<PathSelectItem>())
+                {
+                    // Verify and process the $select path
+                    IList<ODataPathSegment> remainingSegments;
+                    ODataPathSegment firstPropertySegment = pathSelectItem.SelectedPath.ProcessSelectPath(out remainingSegments);
+
+                    PropertySegment firstSturucturalPropertySegment = firstPropertySegment as PropertySegment;
+                    if (firstSturucturalPropertySegment != null)
+                    {
+                        SelectExpandIncludeProperty newPropertySelectItem;
+                        if (!currentLevelPropertiesInclude.TryGetValue(firstSturucturalPropertySegment.Property, out newPropertySelectItem))
+                        {
+                            newPropertySelectItem = new SelectExpandIncludeProperty(firstSturucturalPropertySegment, navigationSource);
+                            currentLevelPropertiesInclude[firstSturucturalPropertySegment.Property] = newPropertySelectItem;
+                        }
+
+                        newPropertySelectItem.AddSubSelectItem(remainingSegments, pathSelectItem);
+                    }
+                    else
+                    {
+                        // Do nothing here, because if we can't find a PropertySegment, the $select path maybe selecting an operation, or dynamic property.
+                        // We needn't process the operation selection, and dynamic property is processed individually.
+                    }
+                }
+
+                // We should include the keys if it's an entity.
+                IEdmEntityType entityType = elementType as IEdmEntityType;
+                if (entityType != null)
+                {
+                    foreach (IEdmStructuralProperty keyProperty in entityType.Key())
+                    {
+                        if (!currentLevelPropertiesInclude.Keys.Contains(keyProperty))
+                        {
+                            autoSelectedProperties.Add(keyProperty);
+                        }
+                    }
+                }
+
+                // We should add concurrency properties, if not added
+                if (navigationSource != null && model != null)
+                {
+                    IEnumerable<IEdmStructuralProperty> concurrencyProperties = model.GetConcurrencyProperties(navigationSource);
+                    foreach (IEdmStructuralProperty concurrencyProperty in concurrencyProperties)
+                    {
+                        if (!currentLevelPropertiesInclude.Keys.Contains(concurrencyProperty))
+                        {
+                            autoSelectedProperties.Add(concurrencyProperty);
+                        }
+                    }
+                }
+            }
+
+            foreach (var propertiesInclude in currentLevelPropertiesInclude)
+            {
+                propertiesToInclude[propertiesInclude.Key] = propertiesInclude.Value == null ? null : propertiesInclude.Value.ToPathSelectItem();
+            }
         }
 
         private static bool GetSelectsOpenTypeSegments(SelectExpandClause selectExpandClause, IEdmStructuredType structuredType)
@@ -624,10 +535,11 @@ namespace Microsoft.AspNet.OData.Query.Expressions
         }
 
         [SuppressMessage("Microsoft.Maintainability", "CA1506:AvoidExcessiveClassCoupling", Justification = "Class coupling acceptable")]
-        private Expression BuildPropertyContainer(IEdmStructuredType elementType, Expression source,
+        private Expression BuildPropertyContainer(Expression source, IEdmStructuredType elementType,
             IDictionary<IEdmNavigationProperty, ExpandedReferenceSelectItem> propertiesToExpand,
             IDictionary<IEdmStructuralProperty, PathSelectItem> propertiesToInclude,
-            /*ISet<IEdmStructuralProperty> propertiesToInclude, ISet<IEdmStructuralProperty> autoSelectedProperties,*/ bool isSelectingOpenTypeSegments)
+            ISet<IEdmStructuralProperty> autoSelectedProperties,
+            bool isSelectingOpenTypeSegments)
         {
             IList<NamedPropertyExpression> includedProperties = new List<NamedPropertyExpression>();
 
@@ -643,7 +555,8 @@ namespace Microsoft.AspNet.OData.Query.Expressions
 
                 Expression propertyName = CreatePropertyNameExpression(elementType, propertyToExpand, source);
 
-                Expression propertyValue = CreatePropertyValueExpressionWithFilter(elementType, propertyToExpand, source, expandItem);
+                // TODO: Process $apply and $compute in the $expand ahead.
+                Expression propertyValue = CreatePropertyValueExpression(elementType, propertyToExpand, source, expandItem.FilterOption);
 
                 Expression nullCheck = GetNullCheckExpression(propertyToExpand, propertyValue, subSelectExpandClause);
 
@@ -684,6 +597,7 @@ namespace Microsoft.AspNet.OData.Query.Expressions
 
             foreach (var propertyToInclude in propertiesToInclude)
             {
+                // $select=abc($select=...,$filter=...,$compute=...)....
                 IEdmStructuralProperty structuralProperty = propertyToInclude.Key;
                 PathSelectItem pathSelectItem = propertyToInclude.Value;
 
@@ -693,21 +607,16 @@ namespace Microsoft.AspNet.OData.Query.Expressions
                 Expression propertyValue;
                 if (pathSelectItem == null)
                 {
-                    // auto-selected properties
-                    propertyValue = CreatePropertyValueExpression(elementType, structuralProperty, source);
-                    includedProperties.Add(new NamedPropertyExpression(propertyName, propertyValue)
-                    {
-                        AutoSelected = true
-                    });
+                    propertyValue = CreatePropertyValueExpression(elementType, structuralProperty, source, filterClause: null);
+                    includedProperties.Add(new NamedPropertyExpression(propertyName, propertyValue));
                     continue;
                 }
 
-                propertyValue = CreatePropertyValueExpressionWithFilter(elementType, structuralProperty, source, pathSelectItem.FilterOption, null);
-                /*
-                // 1. Add HomeAddress
-                // 2. Inner to add property (Street)
-                // TODO: 
-                includedProperties.Add(new NamedPropertyExpression(propertyName, propertyValue));*/
+                // TODO: Process $compute in the $select ahead.
+                propertyValue = CreatePropertyValueExpression(elementType, structuralProperty, source, pathSelectItem.FilterOption);
+
+                Expression countExpression = CreateTotalCountExpression(propertyValue, pathSelectItem.CountOption);
+
                 ModelBoundQuerySettings querySettings = EdmLibHelpers.GetModelBoundQuerySettings(structuralProperty, structuralProperty.Type.ToStructuredType(), _context.Model);
 
                 // subSelectExpandClause can be null if the expanded navigation property is not further projected or expanded.
@@ -719,28 +628,41 @@ namespace Microsoft.AspNet.OData.Query.Expressions
                 }
 
                 NamedPropertyExpression propertyExpression = new NamedPropertyExpression(propertyName, propertyValue);
+                if (subSelectExpandClause != null)
+                {
+                    if (!structuralProperty.Type.IsCollection())
+                    {
+                       // propertyExpression.NullCheck = nullCheck;
+                    }
+                    else if (_settings.PageSize.HasValue)
+                    {
+                        propertyExpression.PageSize = _settings.PageSize.Value;
+                    }
+                    else
+                    {
+                        if (querySettings != null && querySettings.PageSize.HasValue)
+                        {
+                            propertyExpression.PageSize = querySettings.PageSize.Value;
+                        }
+                    }
+
+                    propertyExpression.TotalCount = countExpression;
+                    propertyExpression.CountOption = pathSelectItem.CountOption;
+                }
+
                 includedProperties.Add(propertyExpression);
-                /*
-                if (propertyToInclude.Value != null)
-                {
-                    includedProperties.Add(CreateNamedPropertyExpression(source, elementType, propertyToInclude.Value));
-                }
-                else
-                {
-                    Expression propertyName = CreatePropertyNameExpression(elementType, propertyToInclude.Key, source);
-                    Expression propertyValue = CreatePropertyValueExpressionWithFilter(elementType, propertyToInclude.Key, source, propertyToInclude.Value);
-                    includedProperties.Add(new NamedPropertyExpression(propertyName, propertyValue));
-                }
-                */
             }
 
-            /*
             foreach (IEdmStructuralProperty propertyToInclude in autoSelectedProperties)
             {
                 Expression propertyName = CreatePropertyNameExpression(elementType, propertyToInclude, source);
-                Expression propertyValue = CreatePropertyValueExpression(elementType, propertyToInclude, source);
-                includedProperties.Add(new NamedPropertyExpression(propertyName, propertyValue) { AutoSelected = true });
-            }*/
+                Expression propertyValue = CreatePropertyValueExpression(elementType, propertyToInclude, source, filterClause: null);
+
+                includedProperties.Add(new NamedPropertyExpression(propertyName, propertyValue)
+                {
+                    AutoSelected = true
+                });
+            }
 
             if (isSelectingOpenTypeSegments)
             {
@@ -771,277 +693,6 @@ namespace Microsoft.AspNet.OData.Query.Expressions
             return PropertyContainer.CreatePropertyContainer(includedProperties);
         }
 
-        internal SelectExpandClause CreateSelectExpandClause(IList<SelectItem> selectItems)
-        {
-            bool selectAll = true;
-            foreach (var selectItem in selectItems.OfType<PathSelectItem>())
-            {
-                if (selectItem.SelectedPath.Count() > 0)
-                {
-                    selectAll = false;
-                    break;
-                }
-
-                if(!selectItem.SelectAndExpand.AllSelected)
-                {
-                    selectAll = false;
-                    break;
-                }
-            }
-
-            // if only has the $expand, selectAll= true, 
-            return new SelectExpandClause(selectItems, selectAll);
-        }
-
-        /// <summary>
-        /// For example: $select=NS.SubType1/abc/NS.SubType2/xyz
-        /// => firstPropertySegment: "abc"
-        /// => remainingSegments:  NS.SubType2/xyz
-        /// </summary>
-        internal Expression ProcessSelectExpandPath(Expression source, IEdmStructuredType elementType, ODataPath selectExpandPath,
-            out ODataPathSegment firstPropertySegment, // should never be null
-            out IList<ODataPathSegment> remainingSegments) // could be null
-        {
-            Contract.Assert(source != null);
-            Contract.Assert(elementType != null);
-            Contract.Assert(selectExpandPath != null);
-
-            remainingSegments = null;
-            IEdmStructuredType currentStructuredType = elementType;
-            firstPropertySegment = null;
-            foreach (var segment in selectExpandPath)
-            {
-                if (firstPropertySegment != null)
-                {
-                    if (remainingSegments == null)
-                    {
-                        remainingSegments = new List<ODataPathSegment>();
-                    }
-
-                    remainingSegments.Add(segment);
-                    continue;
-                }
-
-                if (segment is PropertySegment || segment is NavigationPropertySegment)
-                {
-                    firstPropertySegment = segment;
-                    continue;
-                }
-
-                TypeSegment typeSegment = segment as TypeSegment;
-                if (typeSegment != null)
-                {
-                    // From OData lib comments, EdmType of TypeSegment maybe be collection type.
-                    // In fact, it returns the element type, but here, to call "AsElementType()" is safe.
-                    IEdmType typeCastElementType = typeSegment.EdmType.AsElementType();
-
-                    // It's a type cast, for example: ~/Customers?$expand=NS.VipCustomer/VipNavProperty
-                    if (currentStructuredType != typeCastElementType)
-                    {
-                        Type castType = EdmLibHelpers.GetClrType(typeCastElementType, _model);
-                        if (castType == null)
-                        {
-                            throw new ODataException(Error.Format(SRResources.MappingDoesNotContainResourceType, typeSegment.EdmType.FullTypeName()));
-                        }
-
-                        // Append the type cast, "source = source as VipCustomer"
-                        source = Expression.TypeAs(source, castType);
-
-                        currentStructuredType = typeCastElementType as IEdmStructuredType;
-                        Contract.Assert(currentStructuredType != null);
-                    }
-                }
-                else
-                {
-                    Contract.Assert(false, "Should never be here, because it's verified above.");
-                }
-            }
-
-            Contract.Assert(firstPropertySegment != null);
-            return source;
-        }
-
-        private static ExpandedReferenceSelectItem CreateNextExpandedSelectItem(IList<ODataPathSegment> segments, ExpandedReferenceSelectItem expandItem)
-        {
-            ExpandedNavigationSelectItem navigationSelectItem = expandItem as ExpandedNavigationSelectItem;
-            if (navigationSelectItem != null)
-            {
-                return new ExpandedNavigationSelectItem(new ODataExpandPath(segments), navigationSelectItem.NavigationSource,
-                    navigationSelectItem.SelectAndExpand,
-                    navigationSelectItem.FilterOption,
-                    navigationSelectItem.OrderByOption,
-                    navigationSelectItem.TopOption,
-                    navigationSelectItem.SkipOption,
-                    navigationSelectItem.CountOption,
-                    navigationSelectItem.SearchOption,
-                    navigationSelectItem.LevelsOption,
-                    navigationSelectItem.ComputeOption,
-                    navigationSelectItem.ApplyOption);
-            }
-
-            // ok, it's $ref
-            return new ExpandedReferenceSelectItem(new ODataExpandPath(segments), navigationSelectItem.NavigationSource,
-                navigationSelectItem.FilterOption,
-                    navigationSelectItem.OrderByOption,
-                    navigationSelectItem.TopOption,
-                    navigationSelectItem.SkipOption,
-                    navigationSelectItem.CountOption,
-                    navigationSelectItem.SearchOption);
-        }
-
-        internal NamedPropertyExpression CreateNamedPropertyExpression(Expression source, IEdmStructuredType elementType, ExpandedReferenceSelectItem expandItem)
-        {
-            Contract.Assert(source != null);
-            Contract.Assert(elementType != null);
-            Contract.Assert(expandItem != null);
-
-            ODataPathSegment firstPropertySegment;
-            IList<ODataPathSegment> remainingSegments;
-            source = ProcessSelectExpandPath(source, elementType, expandItem.PathToNavigationProperty, out firstPropertySegment, out remainingSegments);
-
-            // firstPropertySegment should never be null, it's verified in "ProcessSelectExpandPath"
-            PropertySegment propertySegment = firstPropertySegment as PropertySegment;
-            NavigationPropertySegment navigationSegment = firstPropertySegment as NavigationPropertySegment;
-
-            IEdmStructuredType currentStructuredType;
-            if (propertySegment != null)
-            {
-                Contract.Assert(remainingSegments != null, "Complex type property should never be the last segment in expand path.");
-
-                currentStructuredType = propertySegment.Property.Type.ToStructuredType();
-                Contract.Assert(currentStructuredType != null, "Only the complex type property should be in the middle of expand path.");
-
-                // Update the source as 'source == null ? null : source.property'
-                source = UpdateSourceExpression(source, propertySegment.Property);
-
-                ExpandedReferenceSelectItem newExpandedRefSelectItem = CreateNextExpandedSelectItem(remainingSegments, expandItem);
-
-                return CreateNamedPropertyExpression(source, currentStructuredType, newExpandedRefSelectItem);
-            }
-            else if (navigationSegment != null)
-            {
-                Contract.Assert(remainingSegments == null, "Navigation property should be the last segment in all select and expand path.");
-
-                IEdmNavigationProperty propertyToExpand = navigationSegment.NavigationProperty;
-
-                SelectExpandClause subSelectExpand = GetOrCreateSelectExpandClause(propertyToExpand, expandItem);
-
-                currentStructuredType = propertyToExpand.Type.ToStructuredType();
-
-                ModelBoundQuerySettings querySettings = EdmLibHelpers.GetModelBoundQuerySettings(propertyToExpand, currentStructuredType, _context.Model);
-
-                Expression propertyName = CreatePropertyNameExpression(currentStructuredType, propertyToExpand, source);
-
-                Expression propertyValue = CreatePropertyValueExpressionWithFilter(elementType, propertyToExpand, source, expandItem.FilterOption, null);
-
-                Expression nullCheck = GetNullCheckExpression(propertyToExpand, propertyValue, subSelectExpand);
-
-                Expression countExpression = CreateTotalCountExpression(propertyValue, expandItem.CountOption);
-
-                // projection can be null if the expanded navigation property is not further projected or expanded.
-                if (subSelectExpand != null)
-                {
-                    int? modelBoundPageSize = querySettings == null ? null : querySettings.PageSize;
-                    propertyValue = ProjectAsWrapper(propertyValue, subSelectExpand, currentStructuredType, expandItem.NavigationSource, expandItem, modelBoundPageSize);
-                }
-
-                NamedPropertyExpression propertyExpression = new NamedPropertyExpression(propertyName, propertyValue);
-                if (subSelectExpand != null)
-                {
-                    if (!propertyToExpand.Type.IsCollection())
-                    {
-                        propertyExpression.NullCheck = nullCheck;
-                    }
-                    else if (_settings.PageSize.HasValue)
-                    {
-                        propertyExpression.PageSize = _settings.PageSize.Value;
-                    }
-                    else
-                    {
-                        if (querySettings != null && querySettings.PageSize.HasValue)
-                        {
-                            propertyExpression.PageSize = querySettings.PageSize.Value;
-                        }
-                    }
-
-                    propertyExpression.TotalCount = countExpression;
-                    propertyExpression.CountOption = expandItem.CountOption;
-                }
-
-                return new NamedPropertyExpression(propertyName, propertyValue);
-            }
-
-            Contract.Assert(false, "Should never be here");
-            throw new ODataException("TODO:");
-        }
-
-        internal NamedPropertyExpression CreateNamedPropertyExpression(Expression source, IEdmStructuredType elementType, PathSelectItem selectItem)
-        {
-            Contract.Assert(source != null);
-            Contract.Assert(elementType != null);
-            Contract.Assert(selectItem != null);
-
-            ODataPathSegment firstSegment;
-            IList<ODataPathSegment> remainingSegments;
-            source = ProcessSelectExpandPath(source, elementType, selectItem.SelectedPath, out firstSegment, out remainingSegments);
-
-            // firstPropertySegment should never be null, and it should be PropertySegment.
-            // for other NavigationSegment, it's filtered above.
-            PropertySegment firstPropertySegment = firstSegment as PropertySegment;
-            Contract.Assert(firstPropertySegment != null);
-
-            IEdmStructuralProperty firstProperty = firstPropertySegment.Property;
-            IEdmStructuredType currentStructuredType = firstProperty.Type.ToStructuredType();
-            if (remainingSegments != null)
-            {
-                // Update the source as 'source == null ? null : source.property'
-                source = UpdateSourceExpression(source, firstProperty);
-
-                // move to next path by creating the next PathSelectItem, $select=abc/xyz ==> $select=xyz
-                PathSelectItem newSelectItem = new PathSelectItem(new ODataSelectPath(remainingSegments), selectItem.NavigationSource,
-                    selectItem.SelectAndExpand,
-                    selectItem.FilterOption,
-                    selectItem.OrderByOption,
-                    selectItem.TopOption,
-                    selectItem.SkipOption,
-                    selectItem.CountOption,
-                    selectItem.SearchOption,
-                    selectItem.ComputeOption);
-
-                return CreateNamedPropertyExpression(source, elementType, newSelectItem);
-            }
-
-            // get the property name
-            // Expression propertyName = CreatePropertyNameExpression(currentStructuredType, firstProperty, source);
-            Expression propertyName = Expression.Constant(firstProperty.Name);
-
-            // It means we stop at the last segment, we should apply the query options for that
-            Expression propertyValue = CreatePropertyValueExpressionWithFilter(currentStructuredType, firstProperty, source, selectItem.FilterOption, null);
-
-            // Expression countExpression = CreateTotalCountExpression(propertyValue, selectItem.CountOption);
-
-            return new NamedPropertyExpression(propertyName, propertyValue);
-        }
-
-        private Expression UpdateSourceExpression(Expression source, IEdmStructuralProperty edmStructuralProperty)
-        {
-            string currentPropertyName = EdmLibHelpers.GetClrPropertyName(edmStructuralProperty, _model);
-            if (_settings.HandleNullPropagation == HandleNullPropagationOption.True)
-            {
-                Expression propertyExpression = Expression.Property(source, currentPropertyName);
-                Type nullablePropType = TypeHelper.ToNullable(propertyExpression.Type);
-
-                return Expression.Condition(
-                    test: Expression.Equal(propertyExpression, Expression.Constant(value: null)),
-                    ifTrue: Expression.Constant(value: null, type: nullablePropType),
-                    ifFalse: propertyExpression);
-            }
-            else
-            {
-                return Expression.Property(source, currentPropertyName);
-            }
-        }
-
         private static SelectExpandClause GetOrCreateSelectExpandClause(KeyValuePair<IEdmNavigationProperty, ExpandedReferenceSelectItem> propertyToExpand)
         {
             // for normal $expand=....
@@ -1054,25 +705,6 @@ namespace Microsoft.AspNet.OData.Query.Expressions
             // for $expand=..../$ref, just includes the keys properties
             IList<SelectItem> selectItems = new List<SelectItem>();
             foreach (IEdmStructuralProperty keyProperty in propertyToExpand.Key.ToEntityType().Key())
-            {
-                selectItems.Add(new PathSelectItem(new ODataSelectPath(new PropertySegment(keyProperty))));
-            }
-
-            return new SelectExpandClause(selectItems, false);
-        }
-
-        private static SelectExpandClause GetOrCreateSelectExpandClause(IEdmNavigationProperty propertyToExpand, ExpandedReferenceSelectItem selectItem)
-        {
-            // for normal $expand=....
-            ExpandedNavigationSelectItem expandNavigationSelectItem = selectItem as ExpandedNavigationSelectItem;
-            if (expandNavigationSelectItem != null)
-            {
-                return expandNavigationSelectItem.SelectAndExpand;
-            }
-
-            // for $expand=..../$ref, just includes the keys properties.
-            IList<SelectItem> selectItems = new List<SelectItem>();
-            foreach (IEdmStructuralProperty keyProperty in propertyToExpand.ToEntityType().Key())
             {
                 selectItems.Add(new PathSelectItem(new ODataSelectPath(new PropertySegment(keyProperty))));
             }
@@ -1114,7 +746,7 @@ namespace Microsoft.AspNet.OData.Query.Expressions
             Expression keysNullCheckExpression = null;
             foreach (var key in propertyToExpand.ToEntityType().Key())
             {
-                var propertyValueExpression = CreatePropertyValueExpressionWithFilter(propertyToExpand.ToEntityType(), key, propertyValue, null, null);
+                var propertyValueExpression = CreatePropertyValueExpression(propertyToExpand.ToEntityType(), key, propertyValue, filterClause: null);
                 var keyExpression = Expression.Equal(
                     propertyValueExpression,
                     Expression.Constant(null, propertyValueExpression.Type));
@@ -1306,109 +938,6 @@ namespace Microsoft.AspNet.OData.Query.Expressions
         private static MethodInfo GetSelectMethod(Type elementType, Type resultType)
         {
             return ExpressionHelperMethods.EnumerableSelectGeneric.MakeGenericMethod(elementType, resultType);
-        }
-
-        internal static void GetProperties(IEdmModel model, IEdmStructuredType elementType, IEdmNavigationSource navigationSource, SelectExpandClause selectExpandClause,
-            out IDictionary<IEdmStructuralProperty, PathSelectItem> propertiesToInclude,
-            out IDictionary<IEdmNavigationProperty, ExpandedReferenceSelectItem> propertiesToExpand)
-        {
-            propertiesToInclude = new Dictionary<IEdmStructuralProperty, PathSelectItem>();
-            propertiesToExpand = new Dictionary<IEdmNavigationProperty, ExpandedReferenceSelectItem>();
-
-            if (selectExpandClause == null)
-            {
-                return;
-            }
-
-            var currentLevelPropertiesInclude = new Dictionary<IEdmStructuralProperty, IncludePropertySelectItem>();
-
-            IEnumerable<SelectItem> selectedItems = selectExpandClause.SelectedItems;
-            foreach (ExpandedReferenceSelectItem expandedItem in selectedItems.OfType<ExpandedReferenceSelectItem>())
-            {
-                IList<ODataPathSegment> remainingSegments;
-                ODataPathSegment firstPropertySegment = expandedItem.PathToNavigationProperty.ProcessExpandPath(out remainingSegments);
-
-                PropertySegment firstStructuralPropertySegment = firstPropertySegment as PropertySegment;
-                if (firstStructuralPropertySegment != null)
-                {
-                    // for example: $expand=abc/xyz, the remaining segments should never be null because at least the last navigation segment is there.
-                    Contract.Assert(remainingSegments != null);
-
-                    IncludePropertySelectItem newPropertySelectItem;
-                    if (!currentLevelPropertiesInclude.TryGetValue(firstStructuralPropertySegment.Property, out newPropertySelectItem))
-                    {
-                        newPropertySelectItem = new IncludePropertySelectItem(firstStructuralPropertySegment, navigationSource);
-                        currentLevelPropertiesInclude[firstStructuralPropertySegment.Property] = newPropertySelectItem;
-                    }
-
-                    newPropertySelectItem.AddSubExpandItem(remainingSegments, expandedItem);
-                }
-                else
-                {
-                    // for example: $expand=xyz
-                    Contract.Assert(remainingSegments == null);
-
-                    NavigationPropertySegment firstNavigationPropertySegment = firstPropertySegment as NavigationPropertySegment;
-                    Contract.Assert(firstNavigationPropertySegment != null);
-
-                    // Needn't to add this navigation property into the include property.
-                    // Because this navigation property will be included separately.
-                    propertiesToExpand[firstNavigationPropertySegment.NavigationProperty] = expandedItem;
-                }
-            }
-
-            if (!IsSelectAll(selectExpandClause))
-            {
-                // if selectAll equals to true, we use the instance directly, not use the wrapper. So, we only process for "IsSelectAll == false".
-                foreach (var pathSelectItem in selectedItems.OfType<PathSelectItem>())
-                {
-                    IList<ODataPathSegment> remainingSegments;
-                    ODataPathSegment firstPropertySegment = pathSelectItem.SelectedPath.ProcessSelectPath(out remainingSegments);
-
-                    PropertySegment firstSturucturalPropertySegment = firstPropertySegment as PropertySegment;
-                    Contract.Assert(firstSturucturalPropertySegment != null);
-
-                    IncludePropertySelectItem newPropertySelectItem;
-                    if (!currentLevelPropertiesInclude.TryGetValue(firstSturucturalPropertySegment.Property, out newPropertySelectItem))
-                    {
-                        newPropertySelectItem = new IncludePropertySelectItem(firstSturucturalPropertySegment, navigationSource);
-                        currentLevelPropertiesInclude[firstSturucturalPropertySegment.Property] = newPropertySelectItem;
-                    }
-
-                    newPropertySelectItem.AddSubSelectItem(remainingSegments, pathSelectItem);
-                }
-
-                // add keys
-                IEdmEntityType entityType = elementType as IEdmEntityType;
-                if (entityType != null)
-                {
-                    foreach (IEdmStructuralProperty keyProperty in entityType.Key())
-                    {
-                        if (!currentLevelPropertiesInclude.Keys.Contains(keyProperty))
-                        {
-                            currentLevelPropertiesInclude[keyProperty] = null;
-                        }
-                    }
-                }
-
-                // add concurrency properties, if not added
-                if (navigationSource != null && model != null)
-                {
-                    IEnumerable<IEdmStructuralProperty> concurrencyProperties = model.GetConcurrencyProperties(navigationSource);
-                    foreach (IEdmStructuralProperty concurrencyProperty in concurrencyProperties)
-                    {
-                        if (!currentLevelPropertiesInclude.Keys.Contains(concurrencyProperty))
-                        {
-                            currentLevelPropertiesInclude[concurrencyProperty] = null;
-                        }
-                    }
-                }
-            }
-
-            foreach (var propertiesInclude in currentLevelPropertiesInclude)
-            {
-                propertiesToInclude[propertiesInclude.Key] = propertiesInclude.Value == null ? null : propertiesInclude.Value.ToPathSelectItem();
-            }
         }
 
         private static bool IsSelectAll(SelectExpandClause selectExpandClause)

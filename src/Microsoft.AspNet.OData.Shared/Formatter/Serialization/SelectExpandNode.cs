@@ -249,13 +249,20 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
                 ISet<IEdmNavigationProperty> allNavigationProperties; // includes all navigation properties
                 ISet<IEdmAction> allActions; // includes all bound actions
                 ISet<IEdmFunction> allFunctions; // includes all bound functions
-                IDictionary<IEdmStructuralProperty, IncludePropertySelectItem> allStructuralProperties; // includes primitive, enum, complex or collection of them
+                ISet<IEdmStructuralProperty> allStructuralProperties; // includes primitive, enum, complex or collection of them
 
                 allStructuralProperties = GetAllProperties(model, structuredType, out allNavigationProperties, out allActions, out allFunctions);
 
                 if (selectExpandClause == null)
                 {
-                    InitializeSelectProperties(allStructuralProperties);
+                    if (allStructuralProperties != null)
+                    {
+                        foreach (var property in allStructuralProperties)
+                        {
+                            SetStructuralProperty(property);
+                        }
+                    }
+
                     SelectedNavigationProperties = allNavigationProperties;
                     SelectedActions = allActions;
                     SelectedFunctions = allFunctions;
@@ -286,7 +293,7 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
         /// <param name="allActions">The bound actions.</param>
         /// <param name="allFunctions">The bound function.</param>
         /// <returns>The structural properties (primitive, enum, complex or collection of them.</returns>
-        internal IDictionary<IEdmStructuralProperty, IncludePropertySelectItem> GetAllProperties(IEdmModel model,
+        internal ISet<IEdmStructuralProperty> GetAllProperties(IEdmModel model,
             IEdmStructuredType structuredType,
             out ISet<IEdmNavigationProperty> allNavigationProperties,
             out ISet<IEdmAction> allActions,
@@ -294,7 +301,7 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
         {
             Contract.Assert(structuredType != null);
 
-            IDictionary<IEdmStructuralProperty, IncludePropertySelectItem> allStructuralProperties = null;
+            ISet<IEdmStructuralProperty> allStructuralProperties = null;
             allNavigationProperties = null;
 
             foreach (var edmProperty in structuredType.Properties())
@@ -304,10 +311,10 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
                     case EdmPropertyKind.Structural:
                         if (allStructuralProperties == null)
                         {
-                            allStructuralProperties = new Dictionary<IEdmStructuralProperty, IncludePropertySelectItem>();
+                            allStructuralProperties = new HashSet<IEdmStructuralProperty>();
                         }
 
-                        allStructuralProperties[(IEdmStructuralProperty)edmProperty] = null;
+                        allStructuralProperties.Add((IEdmStructuralProperty)edmProperty);
                         break;
 
                     case EdmPropertyKind.Navigation:
@@ -333,40 +340,7 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
             return allStructuralProperties;
         }
 
-        internal void InitializeSelectProperties(IDictionary<IEdmStructuralProperty, IncludePropertySelectItem> currentLevelPropertiesInclude)
-        {
-            if (currentLevelPropertiesInclude == null)
-            {
-                return;
-            }
 
-            foreach (var propertyToInclude in currentLevelPropertiesInclude)
-            {
-                IEdmStructuralProperty structuralProperty = propertyToInclude.Key;
-
-                bool isComplexOrCollectComplex = IsComplexOrCollectionComplex(structuralProperty);
-
-                PathSelectItem pathSelectItem = propertyToInclude.Value == null ? null : propertyToInclude.Value.ToPathSelectItem();
-                if (isComplexOrCollectComplex)
-                {
-                    if (SelectedComplexesWithPath == null)
-                    {
-                        SelectedComplexesWithPath = new Dictionary<IEdmStructuralProperty, PathSelectItem>();
-                    }
-
-                    SelectedComplexesWithPath[structuralProperty] = pathSelectItem;
-                }
-                else
-                {
-                    if (SelectedStructuralWithPath == null)
-                    {
-                        SelectedStructuralWithPath = new Dictionary<IEdmStructuralProperty, PathSelectItem>();
-                    }
-
-                    SelectedStructuralWithPath[structuralProperty] = pathSelectItem;
-                }
-            }
-        }
 
         /// <summary>
         /// Build $select and $expand clause
@@ -377,17 +351,32 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
         /// <param name="allActions">All bound actions.</param>
         /// <param name="allFunctions">All bound functions.</param>
         internal void BuildSelectExpand(SelectExpandClause selectExpandClause,
-            IDictionary<IEdmStructuralProperty, IncludePropertySelectItem> allStructuralProperties,
+            ISet<IEdmStructuralProperty> allStructuralProperties,
             ISet<IEdmNavigationProperty> allNavigationProperties,
             ISet<IEdmAction> allActions,
             ISet<IEdmFunction> allFunctions)
         {
             Contract.Assert(selectExpandClause != null);
 
-            IDictionary<IEdmStructuralProperty, IncludePropertySelectItem> currentLevelPropertiesInclude = null;
+            var currentLevelPropertiesInclude = new Dictionary<IEdmStructuralProperty, IncludePropertySelectItem>();
+
+            // Process the $expand=....
+            foreach (ExpandedReferenceSelectItem expandReferenceItem in selectExpandClause.SelectedItems.OfType<ExpandedReferenceSelectItem>())
+            {
+                BuildExpandItem(expandReferenceItem, currentLevelPropertiesInclude);
+            }
+
             if (selectExpandClause.AllSelected)
             {
-                currentLevelPropertiesInclude = allStructuralProperties;
+                foreach (var property in allStructuralProperties)
+                {
+                    if (!currentLevelPropertiesInclude.ContainsKey(property))
+                    {
+                        // Set the value as null is safe, because this property should not further process.
+                        currentLevelPropertiesInclude[property] = null;
+                    }
+                }
+
                 SelectedNavigationProperties = allNavigationProperties;
                 SelectedActions = allActions;
                 SelectedFunctions = allFunctions;
@@ -410,11 +399,6 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
                     if (pathSelectItem != null)
                     {
                         // $select=abc/.../xyz
-                        if (currentLevelPropertiesInclude == null)
-                        {
-                            currentLevelPropertiesInclude = new Dictionary<IEdmStructuralProperty, IncludePropertySelectItem>();
-                        }
-
                         BuildSelectItem(pathSelectItem, currentLevelPropertiesInclude, allActions, allFunctions);
                         continue;
                     }
@@ -423,7 +407,17 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
                     if (wildCardSelectItem != null)
                     {
                         // $select=*
-                        currentLevelPropertiesInclude = allStructuralProperties;
+                        foreach (var property in allStructuralProperties)
+                        {
+                            if (!currentLevelPropertiesInclude.ContainsKey(property))
+                            {
+                                // Set the value as null is safe, because this property should not further process.
+                                // Besides, if there's "WildcardSelectItem", there's no other property selection items.
+                                // That's guranteed in ODL.
+                                currentLevelPropertiesInclude[property] = null;
+                            }
+                        }
+
                         SelectedNavigationProperties = allNavigationProperties;
                         SelectAllDynamicProperties = true;
                         continue;
@@ -442,17 +436,6 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
                 }
             }
 
-            // Process the $expand=....
-            foreach (ExpandedReferenceSelectItem expandReferenceItem in selectExpandClause.SelectedItems.OfType<ExpandedReferenceSelectItem>())
-            {
-                if (currentLevelPropertiesInclude == null)
-                {
-                    currentLevelPropertiesInclude = new Dictionary<IEdmStructuralProperty, IncludePropertySelectItem>();
-                }
-
-                BuildExpandItem(expandReferenceItem, currentLevelPropertiesInclude);
-            }
-
             InitializeSelectProperties(currentLevelPropertiesInclude);
         }
 
@@ -466,12 +449,9 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
             Contract.Assert(expandReferenceItem != null && expandReferenceItem.PathToNavigationProperty != null);
             Contract.Assert(currentLevelPropertiesInclude != null);
 
-            // Verify the $expand=abc/xyz/nav.
-            ODataExpandPath expandPath = expandReferenceItem.PathToNavigationProperty;
-            expandPath.ValidatePath();
-
+            // Verify and process the $expand=abc/xyz/nav.
             IList<ODataPathSegment> remainingSegments;
-            ODataPathSegment segment = expandPath.ProcessExpandPath(out remainingSegments);
+            ODataPathSegment segment = expandReferenceItem.PathToNavigationProperty.ProcessExpandPath(out remainingSegments);
 
             PropertySegment firstPropertySegment = segment as PropertySegment;
             if (firstPropertySegment != null)
@@ -486,6 +466,7 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
                     currentLevelPropertiesInclude[firstPropertySegment.Property] = newPropertySelectItem;
                 }
 
+                Contract.Assert(newPropertySelectItem != null);
                 newPropertySelectItem.AddSubExpandItem(remainingSegments, expandReferenceItem);
             }
             else
@@ -525,11 +506,9 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
             Contract.Assert(pathSelectItem != null && pathSelectItem.SelectedPath != null);
             Contract.Assert(currentLevelPropertiesInclude != null);
 
-            // Verify the $select=abc/xyz/....
+            // Verify and process the $select=abc/xyz/....
             ODataSelectPath selectPath = pathSelectItem.SelectedPath;
-            selectPath.ValidatePath();
-
-            IList<ODataPathSegment> remainingSegments ;
+            IList<ODataPathSegment> remainingSegments;
             ODataPathSegment segment = selectPath.ProcessSelectPath(out remainingSegments);
 
             PropertySegment firstPropertySegment = segment as PropertySegment;
@@ -580,6 +559,45 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
 
             // In fact, we should never be here, because it's verified in ValidatePath()
             throw new ODataException(Error.Format(SRResources.SelectionTypeNotSupported, segment.GetType().Name));
+        }
+
+        private void InitializeSelectProperties(IDictionary<IEdmStructuralProperty, IncludePropertySelectItem> currentLevelPropertiesInclude)
+        {
+            if (currentLevelPropertiesInclude == null)
+            {
+                return;
+            }
+
+            foreach (var propertyToInclude in currentLevelPropertiesInclude)
+            {
+                IEdmStructuralProperty structuralProperty = propertyToInclude.Key;
+                PathSelectItem pathSelectItem = propertyToInclude.Value == null ? null : propertyToInclude.Value.ToPathSelectItem();
+                SetStructuralProperty(structuralProperty, pathSelectItem);
+            }
+        }
+
+        private void SetStructuralProperty(IEdmStructuralProperty structuralProperty, PathSelectItem pathSelectItem = null)
+        {
+            bool isComplexOrCollectComplex = IsComplexOrCollectionComplex(structuralProperty);
+
+            if (isComplexOrCollectComplex)
+            {
+                if (SelectedComplexesWithPath == null)
+                {
+                    SelectedComplexesWithPath = new Dictionary<IEdmStructuralProperty, PathSelectItem>();
+                }
+
+                SelectedComplexesWithPath[structuralProperty] = pathSelectItem;
+            }
+            else
+            {
+                if (SelectedStructuralWithPath == null)
+                {
+                    SelectedStructuralWithPath = new Dictionary<IEdmStructuralProperty, PathSelectItem>();
+                }
+
+                SelectedStructuralWithPath[structuralProperty] = pathSelectItem;
+            }
         }
 
         private void AddOperations(ISet<IEdmAction> allActions, ISet<IEdmFunction> allFunctions, OperationSegment operationSegment)
@@ -676,17 +694,7 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
         public IList<SelectItem> SubSelectItems { get; set; }
 
         public PathSelectItem ToPathSelectItem()
-        {/*
-            bool IsSelectAll = true;
-            foreach (var item in SubSelectItems)
-            {
-                if (item is PathSelectItem)
-                {
-                    IsSelectAll = false;
-                    break;
-                }
-            }*/
-
+        {
             SelectExpandClause subSelectExpandClause;
             if (SubSelectItems.Any())
             {
@@ -728,6 +736,9 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
                     NavigationSource = oldSelectItem.NavigationSource; // from ODL, it's null?
                 }
 
+                // In ODL v7.6.1, it's not allowed duplicated properties in $select.
+                // It's possibility to allow duplicated properties in $select.
+                // It that's the case, please update the codes here otherwise the latter will win.
                 FilterClause = oldSelectItem.FilterOption;
                 OrderByClause = oldSelectItem.OrderByOption;
                 TopClause = oldSelectItem.TopOption;

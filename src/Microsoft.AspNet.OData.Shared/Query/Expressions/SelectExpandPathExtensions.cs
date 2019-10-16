@@ -12,59 +12,78 @@ namespace Microsoft.AspNet.OData.Query.Expressions
 {
     internal static class SelectExpandPathExtensions
     {
-        // we only support paths of type 'cast/structuralOrNavPropertyOrAction' and 'structuralOrNavPropertyOrAction'.
-        // It supports the path like
-        // "{cast|StructuralProperty}/|{cast|StructuralProperty}|/{NavigationProperty|StructuralProperty|OperationSegment|DynamicPathSegment|
-        internal static void ValidatePath(this ODataSelectPath selectPath)
+        /// <summary>
+        /// we support $select paths as:
+        /// The last segment could be "NavigationPropertySegment, PropertySegment, OperationSegment, DynamicPathSegment"
+        /// The middle segment should be "TypeSegment" or "PropertySegment".
+        /// Others are invalid segment in $select path.
+        /// </summary>
+        /// <param name="selectPath">The input $select path.</param>
+        public static void ValidatePath(this ODataSelectPath selectPath)
         {
             Contract.Assert(selectPath != null);
 
-            int segmentCount = selectPath.Count();
-
-            ODataPathSegment lastSegment = selectPath.LastSegment;
-            if (!(lastSegment is NavigationPropertySegment
-                || lastSegment is PropertySegment
-                || lastSegment is OperationSegment
-                || lastSegment is DynamicPathSegment))
+            int lastIndex = selectPath.Count() - 1;
+            int index = 0;
+            foreach (var segment in selectPath)
             {
-                throw new ODataException(Error.Format(SRResources.InvalidLastSegmentInSelectExpandPath, lastSegment.Identifier));
-            }
-
-            for (int i = 0; i < segmentCount - 1; i++)
-            {
-                ODataPathSegment segment = selectPath.ElementAt(i);
-                if (!(segment is PropertySegment
-                    || segment is TypeSegment))
+                if (index == lastIndex - 1)
                 {
-                    throw new ODataException(Error.Format(SRResources.InvalidSegmentInSelectExpandPath, segment.Identifier));
+                    // Last segment
+                    if (!(segment is NavigationPropertySegment
+                        || segment is PropertySegment
+                        || segment is OperationSegment
+                        || segment is DynamicPathSegment))
+                    {
+                        throw new ODataException(Error.Format(SRResources.InvalidLastSegmentInSelectExpandPath, segment.Identifier));
+                    }
                 }
+                else
+                {
+                    // middle segment
+                    if (!(segment is PropertySegment || segment is TypeSegment))
+                    {
+                        throw new ODataException(Error.Format(SRResources.InvalidSegmentInSelectExpandPath, segment.Identifier));
+                    }
+                }
+
+                index++;
             }
         }
 
-        // We support paths as:
-        // 'cast/structuralOrNavPropertyOrAction',
-        // 'ComplexObject/cast/StructuralOrNavPropertyOnAction',
-        // 'ComplexObject/structuralOrNavPropertyOnAction' 
-        // 'structuralOrNavPropertyOrAction'.
-        internal static void ValidatePath(this ODataExpandPath expandPath)
+        /// <summary>
+        /// We support expand path as:
+        /// The last segment should be "NavigationPropertySegment".
+        /// The middle segment should be "TypeSegment" or "PropertySegment".
+        /// Others are invalid segment in $expand path.
+        /// </summary>
+        /// <param name="expandPath">The input $expand path.</param>
+        public static void ValidatePath(this ODataExpandPath expandPath)
         {
             Contract.Assert(expandPath != null);
 
-            ODataPathSegment lastSegment = expandPath.LastSegment;
-            foreach (ODataPathSegment segment in expandPath)
+            int lastIndex = expandPath.Count() - 1;
+            int index = 0;
+            foreach (var segment in expandPath)
             {
-                if (!(segment is TypeSegment || segment is PropertySegment || (segment == lastSegment)))
+                if (index == lastIndex)
                 {
-                    throw new ODataException(SRResources.UnsupportedSelectExpandPath);
+                    // Last segment
+                    if (!(segment is NavigationPropertySegment))
+                    {
+                        throw new ODataException(Error.Format(SRResources.InvalidLastSegmentInSelectExpandPath, segment.Identifier));
+                    }
                 }
-            }
+                else
+                {
+                    // middle segment
+                    if (!(segment is PropertySegment || segment is TypeSegment))
+                    {
+                        throw new ODataException(Error.Format(SRResources.InvalidSegmentInSelectExpandPath, segment.Identifier));
+                    }
+                }
 
-            if (!(lastSegment is NavigationPropertySegment
-                  || lastSegment is PropertySegment
-                  || lastSegment is OperationSegment
-                  || lastSegment is DynamicPathSegment))
-            {
-                throw new ODataException(SRResources.UnsupportedSelectExpandPath);
+                index++;
             }
         }
 
@@ -75,11 +94,15 @@ namespace Microsoft.AspNet.OData.Query.Expressions
         /// </summary>
         public static ODataPathSegment ProcessSelectPath(this ODataSelectPath selectPath, out IList<ODataPathSegment> remainingSegments) // could be null
         {
+            ValidatePath(selectPath);
+
             return ProcessSelectExpandPath(selectPath, out remainingSegments);
         }
 
         public static ODataPathSegment ProcessExpandPath(this ODataExpandPath expandPath, out IList<ODataPathSegment> remainingSegments) // could be null
         {
+            ValidatePath(expandPath);
+
             return ProcessSelectExpandPath(expandPath, out remainingSegments);
         }
 
@@ -88,6 +111,9 @@ namespace Microsoft.AspNet.OData.Query.Expressions
         /// => firstPropertySegment: "abc"
         /// => remainingSegments:  NS.SubType2/xyz
         /// </summary>
+        /// <param name="selectExpandPath">The input $select and $expand path.</param>
+        /// <param name="remainingSegments">The remaining segments, it could be null if we can't find a Property segment or Navigation property segment.</param>
+        /// <returns>The null or <see cref="PropertySegment"/> or <see cref="NavigationPropertySegment"/>.</returns>
         private static ODataPathSegment ProcessSelectExpandPath(ODataPath selectExpandPath, out IList<ODataPathSegment> remainingSegments) // could be null
         {
             Contract.Assert(selectExpandPath != null);
@@ -112,6 +138,8 @@ namespace Microsoft.AspNet.OData.Query.Expressions
                     firstPropertySegment = segment;
                     continue;
                 }
+
+                // we ignore other segment types, for example: TypeSegment, OperationSegment, DynamicSegment, etc.
             }
 
             return firstPropertySegment;
