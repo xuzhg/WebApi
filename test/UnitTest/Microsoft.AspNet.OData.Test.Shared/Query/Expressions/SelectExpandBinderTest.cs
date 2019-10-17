@@ -16,6 +16,7 @@ using Microsoft.AspNet.OData.Test.Common;
 using Microsoft.AspNet.OData.Test.Formatter.Serialization.Models;
 using Microsoft.OData;
 using Microsoft.OData.Edm;
+using Microsoft.OData.Edm.Csdl;
 using Microsoft.OData.UriParser;
 using Xunit;
 
@@ -45,6 +46,22 @@ namespace Microsoft.AspNet.OData.Test.Query.Expressions
             _queryable = new[] { customer }.AsQueryable();
         }
 
+        private static SelectExpandBinder GetBinder<T>(IEdmModel model, HandleNullPropagationOption nullPropagation = HandleNullPropagationOption.False)
+        {
+            var settings = new ODataQuerySettings { HandleNullPropagation = nullPropagation };
+
+            var context = new ODataQueryContext(model, typeof(T)) { RequestContainer = new MockContainer() };
+
+            return new SelectExpandBinder(settings, new SelectExpandQueryOption("*", "", context));
+        }
+
+        [Fact]
+        public void Bind_ReturnsIEdmObject_WithRightEdmType2()
+        {
+            string csdl = Builder.MetadataTest.GetCSDL(_model.Model);
+            Console.WriteLine(csdl);
+        }
+
         [Fact]
         public void Bind_ReturnsIEdmObject_WithRightEdmType()
         {
@@ -56,10 +73,10 @@ namespace Microsoft.AspNet.OData.Test.Query.Expressions
 
             // Assert
             Assert.NotNull(queryable);
-            IEdmTypeReference edmType = _model.Model.GetEdmTypeReference(queryable.GetType());
+            IEdmType edmType = _model.Model.GetEdmType(queryable.GetType());
             Assert.NotNull(edmType);
-            Assert.True(edmType.IsCollection());
-            Assert.Same(_model.Customer, edmType.AsCollection().ElementType().Definition);
+            Assert.Equal(EdmTypeKind.Collection, edmType.TypeKind);
+            Assert.Same(_model.Customer, edmType.AsElementType());
         }
 
         [Fact]
@@ -642,7 +659,7 @@ namespace Microsoft.AspNet.OData.Test.Query.Expressions
             Assert.Equal(ExpressionType.Constant, property.NodeType);
             Assert.Equal(ordersProperty.Name, (property as ConstantExpression).Value);
         }
-
+/*
         [Fact]
         public void CreatePropertyValueExpression_NonDerivedProperty_ReturnsMemberAccessExpression()
         {
@@ -664,11 +681,11 @@ namespace Microsoft.AspNet.OData.Test.Query.Expressions
             ODataSelectPath selectPath = new ODataSelectPath(new PropertySegment(accountProperty));
             PathSelectItem pathSelectItem = new PathSelectItem(selectPath);
 
-            NamedPropertyExpression namedProperty = _binder.CreateNamedPropertyExpression(customer, _model.Customer, pathSelectItem);
+            NamedPropertyExpression namedProperty = _binder.CreatePropertyNameExpression(customer, _model.Customer, pathSelectItem);
 
             //Assert.Equal(ExpressionType.MemberAccess, property.NodeType);
             //Assert.Equal(typeof(Customer).GetProperty("Orders"), (property as MemberExpression).Member);
-        }
+        }*/
 
         //[Fact]
         //public void CreatePropertyValueExpression_ThrowsODataException_IfMappingTypeIsNotFoundInModel()
@@ -684,6 +701,7 @@ namespace Microsoft.AspNet.OData.Test.Query.Expressions
         //        "The provided mapping does not contain a resource for the resource type 'NS.SpecialCustomer'.");
         //}
 
+            /*
         [Fact]
         public void CreatePropertyValueExpression_DerivedProperty_ReturnsPropertyAccessExpression()
         {
@@ -724,7 +742,7 @@ namespace Microsoft.AspNet.OData.Test.Query.Expressions
         //        String.Format("Convert(({0} As SpecialCustomer).SpecialCustomerProperty)", customer.ToString()),
         //        property.ToString());
         //}
-
+        */
         [Fact]
         public void CreatePropertyValueExpression_HandleNullPropagationTrue_AddsNullCheck()
         {
@@ -732,7 +750,7 @@ namespace Microsoft.AspNet.OData.Test.Query.Expressions
             Expression customer = Expression.Constant(new Customer());
             IEdmProperty idProperty = _model.Customer.StructuralProperties().Single(p => p.Name == "ID");
 
-            Expression property = _binder.CreatePropertyValueExpression(_model.Customer, idProperty, customer);
+            Expression property = _binder.CreatePropertyValueExpression(_model.Customer, idProperty, customer, null);
 
             // NetFx and NetCore differ in the way Expression is converted to a string.
             Assert.Equal(ExpressionType.Conditional, property.NodeType);
@@ -766,7 +784,7 @@ namespace Microsoft.AspNet.OData.Test.Query.Expressions
             Expression customer = Expression.Constant(new Customer());
             IEdmProperty idProperty = _model.Customer.StructuralProperties().Single(p => p.Name == "ID");
 
-            Expression property = _binder.CreatePropertyValueExpression(_model.Customer, idProperty, customer);
+            Expression property = _binder.CreatePropertyValueExpression(_model.Customer, idProperty, customer, filterClause: null);
 
 #if NETCORE
             Assert.Equal(String.Format("Convert({0}.ID, Nullable`1)", customer.ToString()), property.ToString());
@@ -794,7 +812,7 @@ namespace Microsoft.AspNet.OData.Test.Query.Expressions
 
             // Act & Assert
             ExceptionAssert.Throws<ODataException>(
-                () => _binder.CreatePropertyValueExpressionWithFilter(_model.Customer, ordersProperty, customer, expandItem),
+                () => _binder.CreatePropertyValueExpression(_model.Customer, ordersProperty, customer, filterClause),
                 "The provided mapping does not contain a resource for the resource type 'NS.Order'.");
 
             // NetFx and NetCore differ in the way Expression is converted to a string.
@@ -844,11 +862,11 @@ namespace Microsoft.AspNet.OData.Test.Query.Expressions
                             null, null, filterClause, null, null, null, null, null, null);
 
             // Act
-            var filterInExpand = _binder.CreatePropertyValueExpressionWithFilter(
+            var filterInExpand = _binder.CreatePropertyValueExpression(
                 _model.Customer,
                 ordersProperty,
                 customer,
-                expandItem);
+                filterClause);
 
             // Assert
             Assert.Equal(
@@ -882,11 +900,11 @@ namespace Microsoft.AspNet.OData.Test.Query.Expressions
                             null, null, filterClause, null, null, null, null, null, null);
 
             // Act
-            var filterInExpand = _binder.CreatePropertyValueExpressionWithFilter(
+            var filterInExpand = _binder.CreatePropertyValueExpression(
                 _model.Customer,
                 ordersProperty,
                 customer,
-                expandItem);
+                filterClause);
 
             // Assert
             Assert.Equal(
@@ -919,7 +937,7 @@ namespace Microsoft.AspNet.OData.Test.Query.Expressions
                             null, null, filterClause, null, null, null, null, null, null);
             // Act & Assert
             ExceptionAssert.Throws<ODataException>(
-                () => _binder.CreatePropertyValueExpressionWithFilter(_model.Order, customerProperty, order, expandItem),
+                () => _binder.CreatePropertyValueExpression(_model.Order, customerProperty, order, filterClause),
                 "The provided mapping does not contain a resource for the resource type 'NS.Customer'.");
         }
 
@@ -948,7 +966,7 @@ namespace Microsoft.AspNet.OData.Test.Query.Expressions
             ExpandedNavigationSelectItem expandItem = new ExpandedNavigationSelectItem(new ODataExpandPath(new NavigationPropertySegment(_model.Order.NavigationProperties().Single(), navigationSource: _model.Customers)),
                             null, null, filterClause, null, null, null, null, null, null);
             // Act 
-            var filterInExpand = _binder.CreatePropertyValueExpressionWithFilter(_model.Order, customerProperty, order, expandItem);
+            var filterInExpand = _binder.CreatePropertyValueExpression(_model.Order, customerProperty, order, filterClause);
 
             // Assert            
             var customer = Expression.Lambda(filterInExpand).Compile().DynamicInvoke() as Customer;
@@ -982,7 +1000,7 @@ namespace Microsoft.AspNet.OData.Test.Query.Expressions
             ExpandedNavigationSelectItem expandItem = new ExpandedNavigationSelectItem(new ODataExpandPath(new NavigationPropertySegment(_model.Order.NavigationProperties().Single(), navigationSource: _model.Customers)),
                             null, null, filterClause, null, null, null, null, null, null);
             // Act
-            var filterInExpand = _binder.CreatePropertyValueExpressionWithFilter(_model.Order, customerProperty, order, expandItem);
+            var filterInExpand = _binder.CreatePropertyValueExpression(_model.Order, customerProperty, order, filterClause);
 
             // Assert
             Assert.Equal(
@@ -1002,7 +1020,7 @@ namespace Microsoft.AspNet.OData.Test.Query.Expressions
             // Arrange
             _settings.HandleReferenceNavigationPropertyExpandFilter = true;
             _settings.HandleNullPropagation = HandleNullPropagationOption.False;
-            var order = Expression.Constant(
+            var source = Expression.Constant(
                     new Order
                     {
                         Customer = new Customer
@@ -1022,14 +1040,14 @@ namespace Microsoft.AspNet.OData.Test.Query.Expressions
             ExpandedNavigationSelectItem expandItem = new ExpandedNavigationSelectItem(new ODataExpandPath(new NavigationPropertySegment(_model.Order.NavigationProperties().Single(), navigationSource: _model.Customers)),
                             null, null, filterClause, null, null, null, null, null, null);
             // Act
-            var filterInExpand = _binder.CreatePropertyValueExpressionWithFilter(_model.Order, customerProperty, order, expandItem);
+            var filterInExpand = _binder.CreatePropertyValueExpression(_model.Order, customerProperty, source, filterClause);
 
             // Assert
             Assert.Equal(
                 string.Format(
                     "IIF((value({0}).Customer.ID != value(Microsoft.AspNet.OData.Query.Expressions.LinqParameterContainer+TypedLinqParameterContainer`1[System.Int32]).TypedProperty), " +
                     "value({0}).Customer, null)",
-                    order.Type),
+                    source.Type),
                 filterInExpand.ToString());
             var customer = Expression.Lambda(filterInExpand).Compile().DynamicInvoke() as Customer;
             Assert.Null(customer);

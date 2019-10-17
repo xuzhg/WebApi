@@ -182,8 +182,10 @@ namespace Microsoft.AspNet.OData.Test.Formatter.Serialization
 
             // Act
             SelectExpandNode selectExpandNode = new SelectExpandNode(selectExpandClause, entityType, _model.Model);
+
 #pragma warning disable CS0618 // Type or member is obsolete
             var result = selectExpandNode.ExpandedNavigationProperties.Keys;
+#pragma warning restore CS0618 // Type or member is obsolete
 
             // Assert
             Assert.Equal(navigationPropertiesToExpand, String.Join(",", result.Select(p => p.Name).OrderBy(n => n)));
@@ -229,6 +231,7 @@ namespace Microsoft.AspNet.OData.Test.Formatter.Serialization
                 "$select does not support selections of type 'SelectItemProxy'.");
         }
 
+        /*
         [Fact]
         public void ValidatePathIsSupported_ThrowsForUnsupportedPathForSelect()
         {
@@ -247,6 +250,6 @@ namespace Microsoft.AspNet.OData.Test.Formatter.Serialization
             ExceptionAssert.Throws<ODataException>(
                 () => SelectExpandNode.ValidatePathIsSupportedForExpand(path),
                 "A path within the select or expand query option is not supported.");
-        }
+        }*/
     }
 }

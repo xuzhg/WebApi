@@ -1,6 +1,7 @@
 ﻿// Copyright (c) Microsoft Corporation.  All rights reserved.
 // Licensed under the MIT License.  See License.txt in the project root for license information.
 
+using System;
 using System.Collections.Generic;
 using System.Diagnostics.Contracts;
 using System.Linq;
@@ -121,24 +122,12 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
         /// </summary>
          public ISet<IEdmNavigationProperty> SelectedNavigationProperties { get; private set; }
 
-        /*
         /// <summary>
         /// Gets the list of EDM navigation properties to be expanded in the response.
         /// </summary>
         [Obsolete("This property is deprecated in favor of ExpandedProperties as this property only contains a subset of the information.")]
         public IDictionary<IEdmNavigationProperty, SelectExpandClause> ExpandedNavigationProperties
-        {
-            get
-            {
-                if (this.cachedExpandedClauses == null)
-                {
-                    this.cachedExpandedClauses = ExpandedProperties.ToDictionary(item => item.Key,
-                        item => item.Value != null ? item.Value.SelectAndExpand : null);
-                }
-
-                return this.cachedExpandedClauses;
-            }
-        }*/
+        { get; }
 
         /// <summary>
         /// Gets the list of EDM navigation properties to be expanded in the response along with the nested query options embedded in the expand.
