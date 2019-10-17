@@ -16,7 +16,6 @@ using Microsoft.AspNet.OData.Test.Common;
 using Microsoft.AspNet.OData.Test.Formatter.Serialization.Models;
 using Microsoft.OData;
 using Microsoft.OData.Edm;
-using Microsoft.OData.Edm.Csdl;
 using Microsoft.OData.UriParser;
 using Xunit;
 
@@ -24,11 +23,14 @@ namespace Microsoft.AspNet.OData.Test.Query.Expressions
 {
     public class SelectExpandBinderTest
     {
+
+
         private readonly SelectExpandBinder _binder;
         private readonly CustomersModelWithInheritance _model;
         private readonly IQueryable<Customer> _queryable;
         private readonly ODataQueryContext _context;
         private readonly ODataQuerySettings _settings;
+
 
         public SelectExpandBinderTest()
         {
@@ -52,8 +54,10 @@ namespace Microsoft.AspNet.OData.Test.Query.Expressions
 
             var context = new ODataQueryContext(model, typeof(T)) { RequestContainer = new MockContainer() };
 
-            return new SelectExpandBinder(settings, new SelectExpandQueryOption("*", "", context));
+            return new SelectExpandBinder(settings, context);
         }
+
+
 
         [Fact]
         public void Bind_ReturnsIEdmObject_WithRightEdmType2()
@@ -62,11 +66,14 @@ namespace Microsoft.AspNet.OData.Test.Query.Expressions
             Console.WriteLine(csdl);
         }
 
-        [Fact]
-        public void Bind_ReturnsIEdmObject_WithRightEdmType()
+        [Theory]
+        [InlineData("ID")]
+        [InlineData("Name")]
+        [InlineData("Address")]
+        public void Bind_ReturnsIEdmObject_WithRightEdmType(string select)
         {
             // Arrange
-            SelectExpandQueryOption selectExpand = new SelectExpandQueryOption(select: "ID", expand: null, context: _context);
+            SelectExpandQueryOption selectExpand = new SelectExpandQueryOption(select: select, expand: null, context: _context);
 
             // Act
             IQueryable queryable = SelectExpandBinder.Bind(_queryable, _settings, selectExpand);
@@ -609,83 +616,163 @@ namespace Microsoft.AspNet.OData.Test.Query.Expressions
             Assert.Equal(customer.City, customerWrapper.Container.ToDictionary(new IdentityPropertyMapper())["City"]);
         }
 
+
+        #region GetSelectExpandProperties Tests
         [Fact]
-        public void CreatePropertyNameExpression_NonDerivedProperty_ReturnsConstantExpression()
+        public void GetSelectExpandProperties_OutputCorrectProperties()
         {
-            Expression customer = Expression.Constant(new Customer());
-            IEdmNavigationProperty ordersProperty = _model.Customer.NavigationProperties().Single();
+            // Arrange
+            IEdmModel model = QueryModel;
+            IEdmEntityType customer = model.SchemaElements.OfType<IEdmEntityType>().First(c => c.Name == "QueryCustomer");
+            IEdmEntitySet customers = model.EntityContainer.FindEntitySet("Customers");
+            Assert.NotNull(customers);
 
-            Expression property = _binder.CreatePropertyNameExpression(_model.Customer, ordersProperty, customer);
+            SelectExpandClause selectExpandClause = ParseSelectExpand("HomeAddress,HomeAddress/Street", null, model, customer, customers);
 
-            Assert.Equal(ExpressionType.Constant, property.NodeType);
-            Assert.Equal(ordersProperty.Name, (property as ConstantExpression).Value);
+            // Act
+            IDictionary<IEdmStructuralProperty, PathSelectItem> propertiesToInclude;
+            IDictionary<IEdmNavigationProperty, ExpandedReferenceSelectItem> propertiesToExpand;
+            ISet<IEdmStructuralProperty> autoSelectedProperties;
+            SelectExpandBinder.GetSelectExpandProperties(model, customer, customers, selectExpandClause,
+                out propertiesToInclude,
+                out propertiesToExpand,
+                out autoSelectedProperties);
+
+            // Assert
+            Assert.NotNull(propertiesToInclude);
+            Assert.NotNull(propertiesToExpand);
+            Assert.NotNull(autoSelectedProperties);
+
         }
+        #endregion
 
-        //[Fact]
-        //public void CreatePropertyNameExpression_ThrowsODataException_IfMappingTypeIsNotFoundInModel()
-        //{
-        //    // Arrange
-        //    _model.Model.SetAnnotationValue<ClrTypeAnnotation>(_model.SpecialCustomer, null);
-
-        //    Expression customer = Expression.Constant(new Customer());
-        //    IEdmNavigationProperty specialOrdersProperty = _model.SpecialCustomer.DeclaredNavigationProperties().Single();
-
-            //// Act & Assert
-            //ExceptionAssert.Throws<ODataException>(
-            //    () => _binder.CreatePropertyNameExpression(_model.Customer, specialOrdersProperty, customer),
-            //    "The provided mapping does not contain a resource for the resource type 'NS.SpecialCustomer'.");
-        //}
-
+        #region CreatePropertyNameExpression Tests
         [Fact]
-        public void CreatePropertyNameExpression_DerivedProperty_ReturnsConditionalExpression()
+        public void CreatePropertyNameExpression_ReturnsCorrectExpression()
         {
-            Expression customer = Expression.Constant(new Customer());
-            IEdmNavigationProperty specialOrdersProperty = _model.SpecialCustomer.DeclaredNavigationProperties().Single();
+            // Arrange
+            IEdmModel model = QueryModel;
 
-            Expression property = _binder.CreatePropertyNameExpression(_model.Customer, specialOrdersProperty, customer);
+            // Retrieve base info
+            IEdmEntityType customer = model.SchemaElements.OfType<IEdmEntityType>().FirstOrDefault(c => c.Name == "QueryCustomer");
+            Assert.NotNull(customer); // Guard
+            IEdmProperty baseProperty = customer.FindProperty("PrivateOrder");
+            Assert.NotNull(baseProperty); // Guard
 
+            // Retrieve derived info
+            IEdmEntityType vipCustomer = model.SchemaElements.OfType<IEdmEntityType>().FirstOrDefault(c => c.Name == "QueryVipCustomer");
+            Assert.NotNull(vipCustomer); // Guard
+            IEdmProperty derivedProperty = vipCustomer.FindProperty("Birthday");
+            Assert.NotNull(derivedProperty); // Guard
+
+            Expression source = Expression.Parameter(typeof(QueryCustomer), "aCustomer");
+            SelectExpandBinder binder = GetBinder<QueryCustomer>(model);
+
+            // Act & Assert
+            // #1. Base property on base type
+            Expression property = binder.CreatePropertyNameExpression(customer, baseProperty, source);
+            Assert.Equal(ExpressionType.Constant, property.NodeType);
+            Assert.Equal(typeof(string), property.Type);
+            Assert.Equal("PrivateOrder", (property as ConstantExpression).Value);
+
+            // #2. Base property on derived type
+            property = binder.CreatePropertyNameExpression(vipCustomer, baseProperty, source);
+            Assert.Equal(ExpressionType.Constant, property.NodeType);
+            Assert.Equal(typeof(string), property.Type);
+            Assert.Equal("PrivateOrder", (property as ConstantExpression).Value);
+
+            // #3. Derived property on base type
+            property = binder.CreatePropertyNameExpression(customer, derivedProperty, source);
             Assert.Equal(ExpressionType.Conditional, property.NodeType);
-            Assert.Equal(String.Format("IIF(({0} Is SpecialCustomer), \"SpecialOrders\", null)", customer.ToString()), property.ToString());
-        }
+            Assert.Equal(typeof(string), property.Type);
+            Assert.Equal(String.Format("IIF((aCustomer Is QueryVipCustomer), \"Birthday\", null)", customer.FullName()), property.ToString());
 
-        [Fact]
-        public void CreatePropertyNameExpression_BaseProperty_From_DerivedType_ReturnsConstantExpression()
-        {
-            Expression customer = Expression.Constant(new SpecialCustomer());
-            IEdmNavigationProperty ordersProperty = _model.Customer.NavigationProperties().Single();
-
-            Expression property = _binder.CreatePropertyNameExpression(_model.SpecialCustomer, ordersProperty, customer);
-
+            // #4. Derived property on derived type.
+            property = binder.CreatePropertyNameExpression(vipCustomer, derivedProperty, source);
             Assert.Equal(ExpressionType.Constant, property.NodeType);
-            Assert.Equal(ordersProperty.Name, (property as ConstantExpression).Value);
-        }
-/*
-        [Fact]
-        public void CreatePropertyValueExpression_NonDerivedProperty_ReturnsMemberAccessExpression()
-        {
-            Expression customer = Expression.Constant(new Customer());
-            IEdmNavigationProperty ordersProperty = _model.Customer.NavigationProperties().Single();
-
-            Expression property = _binder.CreatePropertyValueExpression(_model.Customer, ordersProperty, customer);
-
-            Assert.Equal(ExpressionType.MemberAccess, property.NodeType);
-            Assert.Equal(typeof(Customer).GetProperty("Orders"), (property as MemberExpression).Member);
+            Assert.Equal(typeof(string), property.Type);
+            Assert.Equal("Birthday", (property as ConstantExpression).Value);
         }
 
         [Fact]
-        public void CreateNamedPropertyExpression_NonDerivedProperty_ReturnsMemberAccessExpression()
+        public void CreatePropertyNameExpression_ReturnsConstantExpression_IfPropertyTypeCannotAssignedToElementType()
         {
-            Expression customer = Expression.Constant(new Customer());
-            IEdmStructuralProperty accountProperty = _model.Customer.StructuralProperties().Single(c => c.Name == "Account");
+            // Arrange
+            IEdmModel model = QueryModel;
+            IEdmEntityType customer = model.SchemaElements.OfType<IEdmEntityType>().FirstOrDefault(c => c.Name == "QueryCustomer");
+            Assert.NotNull(customer); // Guard
 
-            ODataSelectPath selectPath = new ODataSelectPath(new PropertySegment(accountProperty));
-            PathSelectItem pathSelectItem = new PathSelectItem(selectPath);
+            IEdmEntityType order = model.SchemaElements.OfType<IEdmEntityType>().FirstOrDefault(c => c.Name == "QueryOrder");
+            Assert.NotNull(order); // Guard
 
-            NamedPropertyExpression namedProperty = _binder.CreatePropertyNameExpression(customer, _model.Customer, pathSelectItem);
+            Assert.False(order.IsOrInheritsFrom(customer)); // make sure order has no inheritance-ship with customer.
 
-            //Assert.Equal(ExpressionType.MemberAccess, property.NodeType);
-            //Assert.Equal(typeof(Customer).GetProperty("Orders"), (property as MemberExpression).Member);
-        }*/
+            IEdmProperty edmProperty = order.FindProperty("Title");
+            Assert.NotNull(edmProperty);
+
+            Expression source = Expression.Parameter(typeof(QueryCustomer), "aCustomer");
+            SelectExpandBinder binder = GetBinder<QueryCustomer>(model);
+
+            // Act
+            Expression property = binder.CreatePropertyNameExpression(customer, edmProperty, source);
+
+            // Assert
+            Assert.Equal(ExpressionType.Constant, property.NodeType);
+            Assert.Equal(typeof(string), property.Type);
+            Assert.Equal("Title", (property as ConstantExpression).Value);
+        }
+
+        [Fact]
+        public void CreatePropertyNameExpression_ThrowsODataException_IfMappingTypeIsNotFoundInModel()
+        {
+            // Arrange
+            EdmModel model = GetEdmModel() as EdmModel;
+            IEdmEntityType customer = model.SchemaElements.OfType<IEdmEntityType>().FirstOrDefault(c => c.Name == "QueryCustomer");
+            Assert.NotNull(customer); // Guard
+
+            // Create a "SubCustomer" derived from "Customer", but without the CLR type in the Edm model.
+            EdmEntityType subCustomer = new EdmEntityType("NS", "SubCustomer", customer);
+            EdmStructuralProperty subNameProperty = subCustomer.AddStructuralProperty("SubName", EdmPrimitiveTypeKind.String);
+            model.AddElement(subCustomer);
+
+            Expression source = Expression.Constant(new Customer());
+            SelectExpandBinder binder = GetBinder<QueryCustomer>(model);
+
+            // Act & Assert
+            ExceptionAssert.Throws<ODataException>(() => binder.CreatePropertyNameExpression(customer, subNameProperty, source),
+                "The provided mapping does not contain a resource for the resource type 'NS.SubCustomer'.");
+        }
+        #endregion
+
+
+
+        /*
+                [Fact]
+                public void CreatePropertyValueExpression_NonDerivedProperty_ReturnsMemberAccessExpression()
+                {
+                    Expression customer = Expression.Constant(new Customer());
+                    IEdmNavigationProperty ordersProperty = _model.Customer.NavigationProperties().Single();
+
+                    Expression property = _binder.CreatePropertyValueExpression(_model.Customer, ordersProperty, customer);
+
+                    Assert.Equal(ExpressionType.MemberAccess, property.NodeType);
+                    Assert.Equal(typeof(Customer).GetProperty("Orders"), (property as MemberExpression).Member);
+                }
+
+                [Fact]
+                public void CreateNamedPropertyExpression_NonDerivedProperty_ReturnsMemberAccessExpression()
+                {
+                    Expression customer = Expression.Constant(new Customer());
+                    IEdmStructuralProperty accountProperty = _model.Customer.StructuralProperties().Single(c => c.Name == "Account");
+
+                    ODataSelectPath selectPath = new ODataSelectPath(new PropertySegment(accountProperty));
+                    PathSelectItem pathSelectItem = new PathSelectItem(selectPath);
+
+                    NamedPropertyExpression namedProperty = _binder.CreatePropertyNameExpression(customer, _model.Customer, pathSelectItem);
+
+                    //Assert.Equal(ExpressionType.MemberAccess, property.NodeType);
+                    //Assert.Equal(typeof(Customer).GetProperty("Orders"), (property as MemberExpression).Member);
+                }*/
 
         //[Fact]
         //public void CreatePropertyValueExpression_ThrowsODataException_IfMappingTypeIsNotFoundInModel()
@@ -701,48 +788,48 @@ namespace Microsoft.AspNet.OData.Test.Query.Expressions
         //        "The provided mapping does not contain a resource for the resource type 'NS.SpecialCustomer'.");
         //}
 
-            /*
-        [Fact]
-        public void CreatePropertyValueExpression_DerivedProperty_ReturnsPropertyAccessExpression()
-        {
-            Expression customer = Expression.Constant(new Customer());
-            IEdmNavigationProperty specialOrdersProperty = _model.SpecialCustomer.DeclaredNavigationProperties().Single();
+        /*
+    [Fact]
+    public void CreatePropertyValueExpression_DerivedProperty_ReturnsPropertyAccessExpression()
+    {
+        Expression customer = Expression.Constant(new Customer());
+        IEdmNavigationProperty specialOrdersProperty = _model.SpecialCustomer.DeclaredNavigationProperties().Single();
 
-            Expression property = _binder.CreatePropertyValueExpression(_model.Customer, specialOrdersProperty, customer);
+        Expression property = _binder.CreatePropertyValueExpression(_model.Customer, specialOrdersProperty, customer);
 
-            Assert.Equal(String.Format("({0} As SpecialCustomer).SpecialOrders", customer.ToString()), property.ToString());
-        }
+        Assert.Equal(String.Format("({0} As SpecialCustomer).SpecialOrders", customer.ToString()), property.ToString());
+    }
 
-        [Fact]
-        public void CreatePropertyValueExpressionWithFilter_ReturnsPropertyAccessExpression()
-        {
-            _model.Model.SetAnnotationValue<ClrTypeAnnotation>(_model.Address, new ClrTypeAnnotation(typeof(Microsoft.AspNet.OData.Test.Formatter.Serialization.Models.Address)));
-            Expression customer = Expression.Constant(new Customer());
+    [Fact]
+    public void CreatePropertyValueExpressionWithFilter_ReturnsPropertyAccessExpression()
+    {
+        _model.Model.SetAnnotationValue<ClrTypeAnnotation>(_model.Address, new ClrTypeAnnotation(typeof(Microsoft.AspNet.OData.Test.Formatter.Serialization.Models.Address)));
+        Expression customer = Expression.Constant(new Customer());
 
-            IEdmStructuralProperty homeAddressProperty = _model.Customer.Properties().FirstOrDefault(c => c.Name == "Address") as IEdmStructuralProperty;
-            IEdmStructuralProperty streetProperty = _model.Address.Properties().FirstOrDefault(c => c.Name == "Street") as IEdmStructuralProperty;
+        IEdmStructuralProperty homeAddressProperty = _model.Customer.Properties().FirstOrDefault(c => c.Name == "Address") as IEdmStructuralProperty;
+        IEdmStructuralProperty streetProperty = _model.Address.Properties().FirstOrDefault(c => c.Name == "Street") as IEdmStructuralProperty;
 
-            PathSelectItem selectItem = new PathSelectItem(new ODataSelectPath(new PropertySegment(homeAddressProperty), new PropertySegment(streetProperty)));
+        PathSelectItem selectItem = new PathSelectItem(new ODataSelectPath(new PropertySegment(homeAddressProperty), new PropertySegment(streetProperty)));
 
-            Expression property = _binder.CreatePropertyValueExpressionWithFilter(_model.Customer, streetProperty, customer, selectItem);
+        Expression property = _binder.CreatePropertyValueExpressionWithFilter(_model.Customer, streetProperty, customer, selectItem);
 
-            Assert.Equal(String.Format("({0} As SpecialCustomer).SpecialOrders", customer.ToString()), property.ToString());
-        }
+        Assert.Equal(String.Format("({0} As SpecialCustomer).SpecialOrders", customer.ToString()), property.ToString());
+    }
 
-        //[Fact]
-        //public void CreatePropertyValueExpression_DerivedNonNullableProperty_ReturnsPropertyAccessExpressionCastToNullable()
-        //{
-        //    Expression customer = Expression.Constant(new Customer());
-        //    IEdmStructuralProperty specialCustomerProperty = _model.SpecialCustomer.DeclaredStructuralProperties()
-        //        .Single(s => s.Name == "SpecialCustomerProperty");
+    //[Fact]
+    //public void CreatePropertyValueExpression_DerivedNonNullableProperty_ReturnsPropertyAccessExpressionCastToNullable()
+    //{
+    //    Expression customer = Expression.Constant(new Customer());
+    //    IEdmStructuralProperty specialCustomerProperty = _model.SpecialCustomer.DeclaredStructuralProperties()
+    //        .Single(s => s.Name == "SpecialCustomerProperty");
 
-        //    Expression property = _binder.CreatePropertyValueExpression(_model.Customer, specialCustomerProperty, customer);
+    //    Expression property = _binder.CreatePropertyValueExpression(_model.Customer, specialCustomerProperty, customer);
 
-        //    Assert.Equal(
-        //        String.Format("Convert(({0} As SpecialCustomer).SpecialCustomerProperty)", customer.ToString()),
-        //        property.ToString());
-        //}
-        */
+    //    Assert.Equal(
+    //        String.Format("Convert(({0} As SpecialCustomer).SpecialCustomerProperty)", customer.ToString()),
+    //        property.ToString());
+    //}
+    */
         [Fact]
         public void CreatePropertyValueExpression_HandleNullPropagationTrue_AddsNullCheck()
         {
@@ -1183,5 +1270,141 @@ namespace Microsoft.AspNet.OData.Test.Query.Expressions
         {
             public SpecialCustomer[] SpecialCustomers { get; set; }
         }
+
+        private static IEdmModel _queryModel;
+
+        public static IEdmModel QueryModel
+        {
+            get
+            {
+                if (_queryModel == null)
+                {
+                    _queryModel = GetEdmModel();
+                }
+
+                return _queryModel;
+            }
+        }
+
+        public static IEdmModel GetEdmModel()
+        {
+            var builder = new ODataConventionModelBuilder();
+            builder.EntitySet<QueryCustomer>("Customers");
+            builder.EntitySet<QueryOrder>("Orders");
+            builder.EntitySet<QueryCity>("Cities");
+            return builder.GetEdmModel();
+        }
+
+        public static SelectExpandClause ParseSelectExpand(string select, string expand)
+        {
+            // use default:
+            IEdmModel model = QueryModel;
+            IEdmEntityType customer = model.SchemaElements.OfType<IEdmEntityType>().FirstOrDefault(c => c.Name == "QueryCustomer");
+            Assert.NotNull(customer);
+
+            IEdmEntitySet customers = model.EntityContainer.FindEntitySet("Customers");
+            Assert.NotNull(customers);
+
+            return ParseSelectExpand(select, expand, model, customer, customers);
+        }
+
+        public static SelectExpandClause ParseSelectExpand(string select, string expand, IEdmModel model, IEdmType edmType, IEdmNavigationSource navigationSource)
+        {
+            return new ODataQueryOptionParser(model, edmType, navigationSource,
+                new Dictionary<string, string>
+                {
+                    { "$expand", expand == null ? "" : expand },
+                    { "$select", select == null ? "" : select }
+                }).ParseSelectAndExpand();
+        }
+    }
+
+    public class QueryCity
+    {
+        public int Id { get; set; }
+
+        public int CityName { get; set; }
+    }
+
+    public class QueryAddress
+    {
+        public string Street { get; set; }
+
+        public string Region { get; set; }
+
+        public IList<int> Prices { get; set; }
+
+        public QueryCity RelatedCity { get; set; }
+
+        public IList<QueryCity> Cities { get; set; }
+    }
+
+    public class QueryUsAddress : QueryAddress
+    {
+
+    }
+
+    public class QueryCnAddress : QueryAddress
+    {
+
+    }
+
+    public class QueryOrder
+    {
+        public int Id { get; set; }
+
+        public string Title { get; set; }
+
+        public QueryCustomer Customer { get; set; }
+
+        public IDictionary<string, object> OrderProperties { get; set; }
+    }
+
+    public class QueryCustomer
+    {
+        public int Id { get; set; }
+
+        public string Name { get; set; }
+
+        public IList<string> Emails { get; set; }
+
+        public QueryColor FarivateColor { get; set; }
+
+        public QueryAddress HomeAddress { get; set; }
+
+        public IList<QueryAddress> Addresses { get; set; }
+
+        public QueryOrder PrivateOrder { get; set; }
+
+        public IList<QueryOrder> Orders { get; set; }
+
+        public IDictionary<string, object> CustomerProperties { get; set; }
+    }
+
+    public class QueryVipCustomer : QueryCustomer
+    {
+        public int Level { get; set; }
+
+        public DateTimeOffset Birthday { get; set; }
+
+        public decimal Bonus { get; set; }
+
+        public QueryVipOrder SpecialOrder { get; set; }
+
+        public QueryVipOrder[] SpecialOrders { get; set; }
+    }
+
+    public class QueryVipOrder : QueryOrder
+    {
+        public QueryVipCustomer[] SpecialCustomers { get; set; }
+    }
+
+    public enum QueryColor
+    {
+        Red,
+
+        Green,
+
+        Blue
     }
 }

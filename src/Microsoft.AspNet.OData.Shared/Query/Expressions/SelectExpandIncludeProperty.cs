@@ -37,9 +37,20 @@ namespace Microsoft.AspNet.OData.Query.Expressions
         public IEdmNavigationSource NavigationSource { get; }
 
         /// <summary>
+        /// Gets the path select item for this property.
+        /// for example: $select=abc or $select=NS.Type/abc
+        /// </summary>
+        public PathSelectItem PropertySelectItem { get; private set; }
+
+        /// <summary>
         /// Gets the $filter for this property.
         /// </summary>
         public FilterClause FilterClause { get; private set; }
+
+        /// <summary>
+        /// Gets the $select and $expand for this property.
+        /// </summary>
+        public SelectExpandClause SelectExpandClause { get; private set; }
 
         /// <summary>
         /// Gets the $orderby for this property.
@@ -72,7 +83,7 @@ namespace Microsoft.AspNet.OData.Query.Expressions
         public ComputeClause ComputeClause { get; private set; }
 
         /// <summary>
-        /// Gets the $select and $expand for this property.
+        /// Gets the sub $select and $expand for this property.
         /// </summary>
         public IList<SelectItem> SubSelectItems { get; private set; }
 
@@ -149,6 +160,11 @@ namespace Microsoft.AspNet.OData.Query.Expressions
                         SubSelectItems.Add(selectItem);
                     }
                 }
+
+
+                // $select=abc,abc($top=2) is not allowed in ODL 7.6.1.
+                Contract.Assert(PropertySelectItem == null);
+                PropertySelectItem = oldSelectItem;
             }
             else
             {
