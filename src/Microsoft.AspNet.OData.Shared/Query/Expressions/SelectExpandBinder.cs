@@ -367,6 +367,77 @@ namespace Microsoft.AspNet.OData.Query.Expressions
             return Expression.MemberInit(Expression.New(wrapperType), wrapperTypeMemberAssignments);
         }
 
+        internal static void ProcessExpandSelectItem(ExpandedReferenceSelectItem expandSelectItem,
+            IEdmNavigationSource navigationSource,
+            IDictionary<IEdmStructuralProperty, SelectExpandIncludeProperty> currentLevelPropertiesInclude,
+            ref IDictionary<IEdmNavigationProperty, ExpandedReferenceSelectItem> propertiesToExpand)
+        {
+            // Verify and process the $expand path
+            IList<ODataPathSegment> remainingSegments;
+            ODataPathSegment firstPropertySegment = expandSelectItem.PathToNavigationProperty.ProcessExpandPath(out remainingSegments);
+
+            PropertySegment firstStructuralPropertySegment = firstPropertySegment as PropertySegment;
+            if (firstStructuralPropertySegment != null)
+            {
+                // for example: $expand=abc/xyz, the remaining segments should never be null because at least the last navigation segment is there.
+                Contract.Assert(remainingSegments != null);
+
+                SelectExpandIncludeProperty newPropertySelectItem;
+                if (!currentLevelPropertiesInclude.TryGetValue(firstStructuralPropertySegment.Property, out newPropertySelectItem))
+                {
+                    newPropertySelectItem = new SelectExpandIncludeProperty(firstStructuralPropertySegment, navigationSource);
+                    currentLevelPropertiesInclude[firstStructuralPropertySegment.Property] = newPropertySelectItem;
+                }
+
+                newPropertySelectItem.AddSubExpandItem(remainingSegments, expandSelectItem);
+            }
+            else
+            {
+                // for example: $expand=xyz, if we couldn't find a structural property in the path, it means we get the last navigation segment.
+                // So, the remaing segments should be null and the last segment should be "NavigationPropertySegment".
+                Contract.Assert(remainingSegments == null);
+
+                NavigationPropertySegment firstNavigationPropertySegment = firstPropertySegment as NavigationPropertySegment;
+                Contract.Assert(firstNavigationPropertySegment != null);
+
+                // Needn't add this navigation property into the include property.
+                // Because this navigation property will be included separately.
+                if (propertiesToExpand == null)
+                {
+                    propertiesToExpand = new Dictionary<IEdmNavigationProperty, ExpandedReferenceSelectItem>();
+                }
+
+                propertiesToExpand[firstNavigationPropertySegment.NavigationProperty] = expandSelectItem;
+            }
+        }
+
+        internal static void ProcessSelectSelectItem(PathSelectItem pathSelectItem,
+            IEdmNavigationSource navigationSource,
+            IDictionary<IEdmStructuralProperty, SelectExpandIncludeProperty> currentLevelPropertiesInclude)
+        {
+            // Verify and process the $select path
+            IList<ODataPathSegment> remainingSegments;
+            ODataPathSegment firstPropertySegment = pathSelectItem.SelectedPath.ProcessSelectPath(out remainingSegments);
+
+            PropertySegment firstSturucturalPropertySegment = firstPropertySegment as PropertySegment;
+            if (firstSturucturalPropertySegment != null)
+            {
+                SelectExpandIncludeProperty newPropertySelectItem;
+                if (!currentLevelPropertiesInclude.TryGetValue(firstSturucturalPropertySegment.Property, out newPropertySelectItem))
+                {
+                    newPropertySelectItem = new SelectExpandIncludeProperty(firstSturucturalPropertySegment, navigationSource);
+                    currentLevelPropertiesInclude[firstSturucturalPropertySegment.Property] = newPropertySelectItem;
+                }
+
+                newPropertySelectItem.AddSubSelectItem(remainingSegments, pathSelectItem);
+            }
+            else
+            {
+                // Do nothing here, because if we can't find a PropertySegment, the $select path maybe selecting an operation, or dynamic property.
+                // We needn't process the operation selection, and dynamic property is processed individually.
+            }
+        }
+
         /// <summary>
         /// Gets the $select and $expand properties from the given <see cref="SelectExpandClause"/>
         /// </summary>
@@ -393,77 +464,27 @@ namespace Microsoft.AspNet.OData.Query.Expressions
             autoSelectedProperties = null;
 
             var currentLevelPropertiesInclude = new Dictionary<IEdmStructuralProperty, SelectExpandIncludeProperty>();
-            IEnumerable<SelectItem> selectedItems = selectExpandClause.SelectedItems;
-            foreach (ExpandedReferenceSelectItem expandedItem in selectedItems.OfType<ExpandedReferenceSelectItem>())
+            foreach (SelectItem selectItem in selectExpandClause.SelectedItems)
             {
-                // Verify and process the $expand path
-                IList<ODataPathSegment> remainingSegments;
-                ODataPathSegment firstPropertySegment = expandedItem.PathToNavigationProperty.ProcessExpandPath(out remainingSegments);
-
-                PropertySegment firstStructuralPropertySegment = firstPropertySegment as PropertySegment;
-                if (firstStructuralPropertySegment != null)
+                ExpandedReferenceSelectItem expandedItem = selectItem as ExpandedReferenceSelectItem;
+                if (expandedItem != null)
                 {
-                    // for example: $expand=abc/xyz, the remaining segments should never be null because at least the last navigation segment is there.
-                    Contract.Assert(remainingSegments != null);
-
-                    SelectExpandIncludeProperty newPropertySelectItem;
-                    if (!currentLevelPropertiesInclude.TryGetValue(firstStructuralPropertySegment.Property, out newPropertySelectItem))
-                    {
-                        newPropertySelectItem = new SelectExpandIncludeProperty(firstStructuralPropertySegment, navigationSource);
-                        currentLevelPropertiesInclude[firstStructuralPropertySegment.Property] = newPropertySelectItem;
-                    }
-
-                    newPropertySelectItem.AddSubExpandItem(remainingSegments, expandedItem);
+                    ProcessExpandSelectItem(expandedItem, navigationSource, currentLevelPropertiesInclude, ref propertiesToExpand);
+                    continue;
                 }
-                else
+
+                PathSelectItem pathItem = selectItem as PathSelectItem;
+                if (pathItem != null)
                 {
-                    // for example: $expand=xyz, if we couldn't find a structural property in the path, it means we get the last navigation segment.
-                    // So, the remaing segments should be null and the last segment should be "NavigationPropertySegment".
-                    Contract.Assert(remainingSegments == null);
-
-                    NavigationPropertySegment firstNavigationPropertySegment = firstPropertySegment as NavigationPropertySegment;
-                    Contract.Assert(firstNavigationPropertySegment != null);
-
-                    // Needn't add this navigation property into the include property.
-                    // Because this navigation property will be included separately.
-                    if (propertiesToExpand == null)
-                    {
-                        propertiesToExpand = new Dictionary<IEdmNavigationProperty, ExpandedReferenceSelectItem>();
-                    }
-
-                    propertiesToExpand[firstNavigationPropertySegment.NavigationProperty] = expandedItem;
+                    ProcessSelectSelectItem(pathItem, navigationSource, currentLevelPropertiesInclude);
+                    continue;
                 }
+
+                // Skip process the "WildcardSelectItem and NamespaceQualifiedWildcardSelectItem"
             }
 
             if (!IsSelectAll(selectExpandClause))
             {
-                // We should skip the below steps for "SelectAll".
-                // because if selectAll equals to true, we use the instance (the object) directly, not use the wrapper.
-                foreach (var pathSelectItem in selectedItems.OfType<PathSelectItem>())
-                {
-                    // Verify and process the $select path
-                    IList<ODataPathSegment> remainingSegments;
-                    ODataPathSegment firstPropertySegment = pathSelectItem.SelectedPath.ProcessSelectPath(out remainingSegments);
-
-                    PropertySegment firstSturucturalPropertySegment = firstPropertySegment as PropertySegment;
-                    if (firstSturucturalPropertySegment != null)
-                    {
-                        SelectExpandIncludeProperty newPropertySelectItem;
-                        if (!currentLevelPropertiesInclude.TryGetValue(firstSturucturalPropertySegment.Property, out newPropertySelectItem))
-                        {
-                            newPropertySelectItem = new SelectExpandIncludeProperty(firstSturucturalPropertySegment, navigationSource);
-                            currentLevelPropertiesInclude[firstSturucturalPropertySegment.Property] = newPropertySelectItem;
-                        }
-
-                        newPropertySelectItem.AddSubSelectItem(remainingSegments, pathSelectItem);
-                    }
-                    else
-                    {
-                        // Do nothing here, because if we can't find a PropertySegment, the $select path maybe selecting an operation, or dynamic property.
-                        // We needn't process the operation selection, and dynamic property is processed individually.
-                    }
-                }
-
                 // We should include the keys if it's an entity.
                 IEdmEntityType entityType = elementType as IEdmEntityType;
                 if (entityType != null)

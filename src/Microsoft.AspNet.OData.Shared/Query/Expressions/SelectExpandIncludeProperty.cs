@@ -3,7 +3,6 @@
 
 using System.Collections.Generic;
 using System.Diagnostics.Contracts;
-using System.Linq;
 using Microsoft.OData.Edm;
 using Microsoft.OData.UriParser;
 
@@ -12,6 +11,27 @@ namespace Microsoft.AspNet.OData.Query.Expressions
     internal class SelectExpandIncludeProperty
     {
         /// <summary>
+        /// the corresponding property segment.
+        /// </summary>
+        private PropertySegment _propertySegment;
+
+        /// <summary>
+        /// the corresponding navigation source. maybe useless
+        /// </summary>
+        private IEdmNavigationSource _navigationSource;
+
+        /// <summary>
+        /// the path select item for this property.
+        /// for example: $select=abc or $select=NS.Type/abc
+        /// </summary>
+        private PathSelectItem _propertySelectItem;
+
+        /// <summary>
+        /// the sub $select and $expand for this property.
+        /// </summary>
+        private IList<SelectItem> _subSelectItems;
+
+        /// <summary>
         /// Creates a new instance of the <see cref="SelectExpandIncludeProperty"/> class.
         /// </summary>
         /// <param name="propertySegment">The property segment that has this select expand item.</param>
@@ -19,73 +39,11 @@ namespace Microsoft.AspNet.OData.Query.Expressions
         public SelectExpandIncludeProperty(PropertySegment propertySegment, IEdmNavigationSource navigationSource)
         {
             Contract.Assert(propertySegment != null);
-            Contract.Assert(navigationSource != null);
+           // Contract.Assert(navigationSource != null);
 
-            PropertySegment = propertySegment;
-            NavigationSource = navigationSource;
-            SubSelectItems = new List<SelectItem>();
+            _propertySegment = propertySegment;
+            _navigationSource = navigationSource;
         }
-
-        /// <summary>
-        /// Gets the corresponding property segment.
-        /// </summary>
-        public PropertySegment PropertySegment { get; }
-
-        /// <summary>
-        /// Gets the corresponding navigation source.
-        /// </summary>
-        public IEdmNavigationSource NavigationSource { get; }
-
-        /// <summary>
-        /// Gets the path select item for this property.
-        /// for example: $select=abc or $select=NS.Type/abc
-        /// </summary>
-        public PathSelectItem PropertySelectItem { get; private set; }
-
-        /// <summary>
-        /// Gets the $filter for this property.
-        /// </summary>
-        public FilterClause FilterClause { get; private set; }
-
-        /// <summary>
-        /// Gets the $select and $expand for this property.
-        /// </summary>
-        public SelectExpandClause SelectExpandClause { get; private set; }
-
-        /// <summary>
-        /// Gets the $orderby for this property.
-        /// </summary>
-        public OrderByClause OrderByClause { get; private set; }
-
-        /// <summary>
-        /// Gets the $top for this property.
-        /// </summary>
-        public long? TopClause { get; private set; }
-
-        /// <summary>
-        /// Gets the $skip for this property.
-        /// </summary>
-        public long? SkipClause { get; private set; }
-
-        /// <summary>
-        /// Gets the $count for this property.
-        /// </summary>
-        public bool? CountClause { get; private set; }
-
-        /// <summary>
-        /// Gets the $search for this property.
-        /// </summary>
-        public SearchClause SearchClause { get; private set; }
-
-        /// <summary>
-        /// Gets the $compute for this property.
-        /// </summary>
-        public ComputeClause ComputeClause { get; private set; }
-
-        /// <summary>
-        /// Gets the sub $select and $expand for this property.
-        /// </summary>
-        public IList<SelectItem> SubSelectItems { get; private set; }
 
         /// <summary>
         /// Gets the merged path select item for this property, <see cref="PathSelectItem"/>.
@@ -93,42 +51,74 @@ namespace Microsoft.AspNet.OData.Query.Expressions
         /// <returns>Null or the created <see cref="PathSelectItem"/>.</returns>
         public PathSelectItem ToPathSelectItem()
         {
-            SelectExpandClause subSelectExpandClause;
-            if (SubSelectItems.Any())
+            bool IsSelectAll = false;
+            if (_propertySelectItem != null && _propertySelectItem.SelectAndExpand != null)
             {
-                bool IsSelectAll = true;
-                foreach (var item in SubSelectItems)
+                IsSelectAll = this._propertySelectItem.SelectAndExpand.AllSelected;
+                foreach (var selectItem in this._propertySelectItem.SelectAndExpand.SelectedItems)
                 {
-                    // only include $expand=...., means selectAll as true
-                    if (!(item is ExpandedNavigationSelectItem || item is ExpandedReferenceSelectItem))
+                    if (_subSelectItems == null)
                     {
-                        IsSelectAll = false;
-                        break;
+                        _subSelectItems = new List<SelectItem>();
+                    }
+
+                    _subSelectItems.Add(selectItem);
+                }
+            }
+
+            SelectExpandClause subSelectExpandClause = null;
+            if (_subSelectItems != null && _subSelectItems.Count > 0)
+            {
+                if (IsSelectAll)
+                {
+                    // We do nothing here, because the property itself tells us to select all.
+                    // and because ODL doesn't allow $select=abc,abc(...)
+                }
+                else
+                {
+                    // Mark selectall equals "true" if only include $expand
+                    // So, if only "$expand=abc/nav", it means to select all for "abc" and expand "nav" to "abc".
+                    IsSelectAll = true;
+                    foreach (var item in _subSelectItems)
+                    {
+                        // only include $expand=...., means selectAll as true
+                        if (!(item is ExpandedNavigationSelectItem || item is ExpandedReferenceSelectItem))
+                        {
+                            IsSelectAll = false;
+                            break;
+                        }
                     }
                 }
 
-                subSelectExpandClause = new SelectExpandClause(SubSelectItems, IsSelectAll);
-            }
-            else
-            {
-                subSelectExpandClause = null;
+                subSelectExpandClause = new SelectExpandClause(_subSelectItems, IsSelectAll);
             }
 
-            if (subSelectExpandClause == null &&
-                FilterClause == null &&
-                OrderByClause == null &&
-                TopClause == null &&
-                SkipClause == null &&
-                CountClause == null &&
-                SearchClause == null &&
-                ComputeClause == null)
+            if (_propertySelectItem == null && subSelectExpandClause == null)
             {
                 return null;
             }
-
-            return new PathSelectItem(new ODataSelectPath(PropertySegment), NavigationSource,
-                subSelectExpandClause,
-                FilterClause, OrderByClause, TopClause, SkipClause, CountClause, SearchClause, ComputeClause);
+            else if (_propertySelectItem == null)
+            {
+                return new PathSelectItem(new ODataSelectPath(_propertySegment), _navigationSource, subSelectExpandClause,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null);
+            }
+            else
+            {
+                return new PathSelectItem(new ODataSelectPath(_propertySegment), _navigationSource, subSelectExpandClause,
+                    _propertySelectItem.FilterOption,
+                    _propertySelectItem.OrderByOption,
+                    _propertySelectItem.TopOption,
+                    _propertySelectItem.SkipOption,
+                    _propertySelectItem.CountOption,
+                    _propertySelectItem.SearchOption,
+                    _propertySelectItem.ComputeOption);
+            }
         }
 
         /// <summary>
@@ -145,30 +135,19 @@ namespace Microsoft.AspNet.OData.Query.Expressions
                 // So, don't worry about the previous setting overrided by other same path.
                 // However, it's possibility in later ODL version (>=7.6.2) to allow duplicated properties in $select.
                 // It that case, please update the codes here otherwise the latter will win.
-                FilterClause = oldSelectItem.FilterOption;
-                OrderByClause = oldSelectItem.OrderByOption;
-                TopClause = oldSelectItem.TopOption;
-                SkipClause = oldSelectItem.SkipOption;
-                CountClause = oldSelectItem.CountOption;
-                SearchClause = oldSelectItem.SearchOption;
-                ComputeClause = oldSelectItem.ComputeOption;
-
-                if (oldSelectItem.SelectAndExpand != null)
-                {
-                    foreach (var selectItem in oldSelectItem.SelectAndExpand.SelectedItems)
-                    {
-                        SubSelectItems.Add(selectItem);
-                    }
-                }
-
-
-                // $select=abc,abc($top=2) is not allowed in ODL 7.6.1.
-                Contract.Assert(PropertySelectItem == null);
-                PropertySelectItem = oldSelectItem;
+                
+                // Besides, $select=abc,abc($top=2) is not allowed in ODL 7.6.1.
+                Contract.Assert(_propertySelectItem == null);
+                _propertySelectItem = oldSelectItem;
             }
             else
             {
-                SubSelectItems.Add(new PathSelectItem(new ODataSelectPath(remainingSegments), oldSelectItem.NavigationSource,
+                if (_subSelectItems == null)
+                {
+                    _subSelectItems = new List<SelectItem>();
+                }
+
+                _subSelectItems.Add(new PathSelectItem(new ODataSelectPath(remainingSegments), oldSelectItem.NavigationSource,
                     oldSelectItem.SelectAndExpand, oldSelectItem.FilterOption,
                     oldSelectItem.OrderByOption, oldSelectItem.TopOption,
                     oldSelectItem.SkipOption, oldSelectItem.CountOption,
@@ -186,11 +165,16 @@ namespace Microsoft.AspNet.OData.Query.Expressions
             // remainingSegments should never be null, because at least a navigation property segment in it.
             Contract.Assert(remainingSegments != null);
 
+            if (_subSelectItems == null)
+            {
+                _subSelectItems = new List<SelectItem>();
+            }
+
             ODataExpandPath newPath = new ODataExpandPath(remainingSegments);
             ExpandedNavigationSelectItem expandedNav = oldRefItem as ExpandedNavigationSelectItem;
             if (expandedNav != null)
             {
-                SubSelectItems.Add(new ExpandedNavigationSelectItem(newPath,
+                _subSelectItems.Add(new ExpandedNavigationSelectItem(newPath,
                     expandedNav.NavigationSource,
                     expandedNav.SelectAndExpand,
                     expandedNav.FilterOption,
@@ -205,7 +189,7 @@ namespace Microsoft.AspNet.OData.Query.Expressions
             }
             else
             {
-                SubSelectItems.Add(new ExpandedReferenceSelectItem(newPath,
+                _subSelectItems.Add(new ExpandedReferenceSelectItem(newPath,
                     oldRefItem.NavigationSource,
                     oldRefItem.FilterOption,
                     oldRefItem.OrderByOption,
