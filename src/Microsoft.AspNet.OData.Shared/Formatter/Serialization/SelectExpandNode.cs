@@ -386,7 +386,7 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
                     if (pathSelectItem != null)
                     {
                         // $select=abc/.../xyz
-                        BuildSelectItem(pathSelectItem, currentLevelPropertiesInclude, allActions, allFunctions);
+                        BuildSelectItem(pathSelectItem, currentLevelPropertiesInclude, allStructuralProperties, allActions, allFunctions);
                         continue;
                     }
 
@@ -437,8 +437,8 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
             Contract.Assert(currentLevelPropertiesInclude != null);
 
             // Verify and process the $expand=abc/xyz/nav.
-            IList<ODataPathSegment> remainingSegments;
-            ODataPathSegment segment = expandReferenceItem.PathToNavigationProperty.ProcessExpandPath(out remainingSegments);
+            IList<ODataPathSegment> remainingSegments, leadingSegments;
+            ODataPathSegment segment = expandReferenceItem.PathToNavigationProperty.ProcessExpandPath(out remainingSegments, out leadingSegments);
 
             PropertySegment firstPropertySegment = segment as PropertySegment;
             if (firstPropertySegment != null)
@@ -449,11 +449,15 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
                 SelectExpandIncludeProperty newPropertySelectItem;
                 if (!currentLevelPropertiesInclude.TryGetValue(firstPropertySegment.Property, out newPropertySelectItem))
                 {
-                    newPropertySelectItem = new SelectExpandIncludeProperty(firstPropertySegment, null);
+                    newPropertySelectItem = new SelectExpandIncludeProperty(firstPropertySegment, null, leadingSegments);
                     currentLevelPropertiesInclude[firstPropertySegment.Property] = newPropertySelectItem;
                 }
+                else
+                {
+                    Contract.Assert(newPropertySelectItem != null);
+                    newPropertySelectItem.VerifyTheLeadingSegments(leadingSegments);
+                }
 
-                Contract.Assert(newPropertySelectItem != null);
                 newPropertySelectItem.AddSubExpandItem(remainingSegments, expandReferenceItem);
             }
             else
@@ -483,10 +487,12 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
         /// </summary>
         /// <param name="pathSelectItem">The expanded reference select item.</param>
         /// <param name="currentLevelPropertiesInclude">The current properties to include at current level.</param>
+        /// <param name="allStructuralProperties">The all structural properties.</param>
         /// <param name="allActions">The all actions.</param>
         /// <param name="allFunctions">The all functions.</param>
         private void BuildSelectItem(PathSelectItem pathSelectItem,
             IDictionary<IEdmStructuralProperty, SelectExpandIncludeProperty> currentLevelPropertiesInclude,
+            ISet<IEdmStructuralProperty> allStructuralProperties,
             ISet<IEdmAction> allActions,
             ISet<IEdmFunction> allFunctions)
         {
@@ -495,18 +501,27 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
 
             // Verify and process the $select=abc/xyz/....
             ODataSelectPath selectPath = pathSelectItem.SelectedPath;
-            IList<ODataPathSegment> remainingSegments;
-            ODataPathSegment segment = selectPath.ProcessSelectPath(out remainingSegments);
+            IList<ODataPathSegment> remainingSegments, leadingSegments;
+            ODataPathSegment segment = selectPath.ProcessSelectPath(out remainingSegments, out leadingSegments);
 
             PropertySegment firstPropertySegment = segment as PropertySegment;
             if (firstPropertySegment != null)
             {
+                if (!allStructuralProperties.Contains(firstPropertySegment.Property))
+                {
+                    return;
+                }
+
                 // $select=abc/xyz/...
                 SelectExpandIncludeProperty newPropertySelectItem;
                 if (!currentLevelPropertiesInclude.TryGetValue(firstPropertySegment.Property, out newPropertySelectItem))
                 {
-                    newPropertySelectItem = new SelectExpandIncludeProperty(firstPropertySegment, null);
+                    newPropertySelectItem = new SelectExpandIncludeProperty(firstPropertySegment, null, leadingSegments);
                     currentLevelPropertiesInclude[firstPropertySegment.Property] = newPropertySelectItem;
+                }
+                else
+                {
+                    newPropertySelectItem.VerifyTheLeadingSegments(leadingSegments);
                 }
 
                 newPropertySelectItem.AddSubSelectItem(remainingSegments, pathSelectItem);

@@ -3,6 +3,7 @@
 
 using System.Collections.Generic;
 using System.Diagnostics.Contracts;
+using Microsoft.OData;
 using Microsoft.OData.Edm;
 using Microsoft.OData.UriParser;
 
@@ -14,6 +15,11 @@ namespace Microsoft.AspNet.OData.Query.Expressions
         /// the corresponding property segment.
         /// </summary>
         private PropertySegment _propertySegment;
+
+        /// <summary>
+        /// the corresponding leading segments before this property segment.
+        /// </summary>
+        private IList<ODataPathSegment> _leadingSegments;
 
         /// <summary>
         /// the corresponding navigation source. maybe useless
@@ -43,6 +49,22 @@ namespace Microsoft.AspNet.OData.Query.Expressions
 
             _propertySegment = propertySegment;
             _navigationSource = navigationSource;
+        }
+
+        /// <summary>
+        /// Creates a new instance of the <see cref="SelectExpandIncludeProperty"/> class.
+        /// </summary>
+        /// <param name="propertySegment">The property segment that has this select expand item.</param>
+        /// <param name="navigationSource">The targe navigation source of this property segment.</param>
+        /// <param name="leadingSegments">The leading segments before the input property segment.</param>
+        public SelectExpandIncludeProperty(PropertySegment propertySegment, IEdmNavigationSource navigationSource, IList<ODataPathSegment> leadingSegments)
+        {
+            Contract.Assert(propertySegment != null);
+            // Contract.Assert(navigationSource != null);
+
+            _propertySegment = propertySegment;
+            _navigationSource = navigationSource;
+            _leadingSegments = leadingSegments;
         }
 
         /// <summary>
@@ -118,6 +140,43 @@ namespace Microsoft.AspNet.OData.Query.Expressions
                     _propertySelectItem.CountOption,
                     _propertySelectItem.SearchOption,
                     _propertySelectItem.ComputeOption);
+            }
+        }
+
+        public void VerifyTheLeadingSegments(IList<ODataPathSegment> toCompareleadingSegments)
+        {
+            if (toCompareleadingSegments == null && this._leadingSegments == null)
+            {
+                return;
+            }
+
+            if (toCompareleadingSegments == null || this._leadingSegments == null)
+            {
+                throw new ODataException("TODO: We found a new path with different leading segments. That's not valid.");
+            }
+
+            int existingCount = this._leadingSegments.Count;
+            int newCount = toCompareleadingSegments.Count;
+
+            if (existingCount != newCount)
+            {
+                throw new ODataException("TODO: We found a new path with different leading segments. That's not valid.");
+            }
+
+            for (int i = 0; i < existingCount; i++)
+            {
+                // Only supports the type cast segment in the leading segments.
+                TypeSegment existingType = this._leadingSegments[i] as TypeSegment;
+                TypeSegment newType = toCompareleadingSegments[i] as TypeSegment;
+
+                if (existingType != null && newType != null)
+                {
+                    if (existingType.EdmType != newType.EdmType ||
+                        existingType.ExpectedType != newType.ExpectedType)
+                    {
+                        throw new ODataException("TODO: We found a new path with different leading segments. That's not valid.");
+                    }
+                }
             }
         }
 

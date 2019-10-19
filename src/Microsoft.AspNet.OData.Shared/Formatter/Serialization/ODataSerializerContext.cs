@@ -94,7 +94,8 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
                 if (pathSelectItem != null)
                 {
                     SelectExpandClause = pathSelectItem.SelectAndExpand;
-                    NavigationSource = pathSelectItem.NavigationSource;
+                    // NavigationSource = pathSelectItem.NavigationSource;
+                    NavigationSource = resource.NavigationSource; // Use it's parent navigation source.
                 }
 
                 var referencedNavigation = currentSelectItem as ExpandedReferenceSelectItem;

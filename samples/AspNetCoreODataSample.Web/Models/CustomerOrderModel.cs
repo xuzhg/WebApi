@@ -26,14 +26,20 @@ namespace AspNetCoreODataSample.Web.Models
 
         public IList<Address> Addresses { get; set; }
 
-        public Order VipOrder { get; set; }
+        public Order HomeOrder { get; set; }
 
         public IList<Order> Orders { get; set; }
     }
 
-    public class VipCustomer
+    public class VipCustomer : Customer
     {
+        public int VipPrice { get; set; }
+
+        public IList<int> VipTaxes { get; set; }
+
         public Address VipAddress { get; set; }
+
+        public IList<Address> VipAddresses { get; set; }
     }
 
     public class Order

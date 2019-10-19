@@ -27,7 +27,7 @@ namespace Microsoft.AspNet.OData.Query.Expressions
             int index = 0;
             foreach (var segment in selectPath)
             {
-                if (index == lastIndex - 1)
+                if (index == lastIndex)
                 {
                     // Last segment
                     if (!(segment is NavigationPropertySegment
@@ -92,18 +92,20 @@ namespace Microsoft.AspNet.OData.Query.Expressions
         /// => firstPropertySegment: "abc"
         /// => remainingSegments:  NS.SubType2/xyz
         /// </summary>
-        public static ODataPathSegment ProcessSelectPath(this ODataSelectPath selectPath, out IList<ODataPathSegment> remainingSegments) // could be null
+        public static ODataPathSegment ProcessSelectPath(this ODataSelectPath selectPath, out IList<ODataPathSegment> remainingSegments, // could be null
+            out IList<ODataPathSegment> leadingSegments)
         {
             ValidatePath(selectPath);
 
-            return ProcessSelectExpandPath(selectPath, out remainingSegments);
+            return ProcessSelectExpandPath(selectPath, out remainingSegments, out leadingSegments);
         }
 
-        public static ODataPathSegment ProcessExpandPath(this ODataExpandPath expandPath, out IList<ODataPathSegment> remainingSegments) // could be null
+        public static ODataPathSegment ProcessExpandPath(this ODataExpandPath expandPath, out IList<ODataPathSegment> remainingSegments, // could be null
+            out IList<ODataPathSegment> leadingSegments)
         {
             ValidatePath(expandPath);
 
-            return ProcessSelectExpandPath(expandPath, out remainingSegments);
+            return ProcessSelectExpandPath(expandPath, out remainingSegments, out leadingSegments);
         }
 
         /// <summary>
@@ -113,12 +115,15 @@ namespace Microsoft.AspNet.OData.Query.Expressions
         /// </summary>
         /// <param name="selectExpandPath">The input $select and $expand path.</param>
         /// <param name="remainingSegments">The remaining segments, it could be null if we can't find a Property segment or Navigation property segment.</param>
+        /// <param name="leadingSegments">The leading segments before the found Property segment or Navigation property segment.</param>
         /// <returns>The null or <see cref="PropertySegment"/> or <see cref="NavigationPropertySegment"/>.</returns>
-        private static ODataPathSegment ProcessSelectExpandPath(ODataPath selectExpandPath, out IList<ODataPathSegment> remainingSegments) // could be null
+        private static ODataPathSegment ProcessSelectExpandPath(ODataPath selectExpandPath, out IList<ODataPathSegment> remainingSegments, // could be null
+            out IList<ODataPathSegment> leadingSegments) // could be null
         {
             Contract.Assert(selectExpandPath != null);
 
             remainingSegments = null;
+            leadingSegments = null;
             ODataPathSegment firstPropertySegment = null;
             foreach (var segment in selectExpandPath)
             {
@@ -138,6 +143,12 @@ namespace Microsoft.AspNet.OData.Query.Expressions
                     firstPropertySegment = segment;
                     continue;
                 }
+
+                if (leadingSegments == null)
+                {
+                    leadingSegments = new List<ODataPathSegment>();
+                }
+                leadingSegments.Add(segment);
 
                 // we ignore other segment types, for example: TypeSegment, OperationSegment, DynamicSegment, etc.
             }
