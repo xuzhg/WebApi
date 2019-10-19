@@ -3,6 +3,7 @@
 
 using System.Collections.Generic;
 using System.Diagnostics.Contracts;
+using Microsoft.AspNet.OData.Common;
 using Microsoft.OData;
 using Microsoft.OData.Edm;
 using Microsoft.OData.UriParser;
@@ -44,8 +45,12 @@ namespace Microsoft.AspNet.OData.Query.Expressions
         /// <param name="navigationSource">The targe navigation source of this property segment.</param>
         public SelectExpandIncludeProperty(PropertySegment propertySegment, IEdmNavigationSource navigationSource)
         {
-            Contract.Assert(propertySegment != null);
-           // Contract.Assert(navigationSource != null);
+            if (propertySegment == null)
+            {
+                throw Error.ArgumentNull("propertySegment");
+            }
+
+            // Contract.Assert(navigationSource != null);
 
             _propertySegment = propertySegment;
             _navigationSource = navigationSource;
@@ -59,7 +64,10 @@ namespace Microsoft.AspNet.OData.Query.Expressions
         /// <param name="leadingSegments">The leading segments before the input property segment.</param>
         public SelectExpandIncludeProperty(PropertySegment propertySegment, IEdmNavigationSource navigationSource, IList<ODataPathSegment> leadingSegments)
         {
-            Contract.Assert(propertySegment != null);
+            if (propertySegment == null)
+            {
+                throw Error.ArgumentNull("propertySegment");
+            }
             // Contract.Assert(navigationSource != null);
 
             _propertySegment = propertySegment;
@@ -73,6 +81,11 @@ namespace Microsoft.AspNet.OData.Query.Expressions
         /// <returns>Null or the created <see cref="PathSelectItem"/>.</returns>
         public PathSelectItem ToPathSelectItem()
         {
+            if (_subSelectItems == null)
+            {
+                return _propertySelectItem;
+            }
+
             bool IsSelectAll = false;
             if (_propertySelectItem != null && _propertySelectItem.SelectAndExpand != null)
             {
@@ -94,7 +107,7 @@ namespace Microsoft.AspNet.OData.Query.Expressions
                 if (IsSelectAll)
                 {
                     // We do nothing here, because the property itself tells us to select all.
-                    // and because ODL doesn't allow $select=abc,abc(...)
+                    // besides, ODL doesn't allow $select=abc,abc(...)
                 }
                 else
                 {
