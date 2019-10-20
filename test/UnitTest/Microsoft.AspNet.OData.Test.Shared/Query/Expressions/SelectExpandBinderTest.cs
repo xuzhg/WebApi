@@ -4,6 +4,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
@@ -602,9 +603,7 @@ namespace Microsoft.AspNet.OData.Test.Query.Expressions
             // Arrange
             Customer customer = new Customer { ID = 42, City = "any" };
 
-            ODataQueryOptionParser parser = new ODataQueryOptionParser(_model.Model, _model.Customer, _model.Customers,
-                new Dictionary<string, string> { { "$select", select } });
-            SelectExpandClause selectExpand = parser.ParseSelectAndExpand();
+            SelectExpandClause selectExpand = ParseSelectExpand(select, null, _model.Model, _model.Customer, _model.Customers);
             Expression source = Expression.Constant(customer);
 
             // Act
@@ -615,9 +614,95 @@ namespace Microsoft.AspNet.OData.Test.Query.Expressions
             Assert.Equal(customer.City, customerWrapper.Container.ToDictionary(new IdentityPropertyMapper())["City"]);
         }
 
+        [Theory]
+     //   [InlineData("Name")]
+        [InlineData("HomeAddress/Street")]
+        public void ProjectAsWrapper_ProjectedValueContainsConcurrencyProperties_EvenIfNotPresentInSelectClause1(string select)
+        {
+            // Arrange
+            QueryCustomer aCustomer = new QueryCustomer
+            {
+                Id = 42,
+                Name = "Peter",
+                HomeAddress = new QueryAddress
+                {
+                    Street = "MyStreet",
+                    AddressETag = 76.5
+                },
+                CustomerETag = 1.14926
+            };
+
+            IEdmModel model = QueryModel;
+            IEdmEntityType customer = model.SchemaElements.OfType<IEdmEntityType>().FirstOrDefault(c => c.Name == "QueryCustomer");
+            Assert.NotNull(customer); // Guard
+
+            IEdmEntitySet customers = model.EntityContainer.FindEntitySet("Customers");
+            Assert.NotNull(customers);
+
+            SelectExpandClause selectExpandClause = ParseSelectExpand(select, null, model, customer, customers);
+            Assert.NotNull(selectExpandClause);
+
+            Expression source = Expression.Constant(aCustomer);
+            SelectExpandBinder binder = GetBinder<QueryCustomer>(model);
+
+            // Act
+            Expression projection = binder.ProjectAsWrapper(source, selectExpandClause, customer, customers);
+
+            // Assert
+            var mapper = new IdentityPropertyMapper();
+            SelectExpandWrapper<QueryCustomer> customerWrapper = Expression.Lambda(projection).Compile().DynamicInvoke() as SelectExpandWrapper<QueryCustomer>;
+            var customerSelectedProperties = customerWrapper.Container.ToDictionary(mapper);
+            Assert.Equal(3, customerSelectedProperties.Count);
+            Assert.Equal(42, customerSelectedProperties["Id"]);
+            Assert.Equal(1.14926, customerSelectedProperties["CustomerETag"]);
+
+            SelectExpandWrapper<QueryAddress> addressWrapper = customerSelectedProperties["HomeAddress"] as SelectExpandWrapper<QueryAddress>;
+            var addressSelectedProperties = addressWrapper.Container.ToDictionary(mapper);
+            Assert.Single(addressSelectedProperties);
+            Assert.Equal("MyStreet", addressSelectedProperties["Street"]);
+
+            //Assert.Equal(customer.City, customerWrapper.Container.ToDictionary(new IdentityPropertyMapper())["City"]);
+        }
+
+        [Fact]
+        public void ProjectAsWrapper_Element_ProjectedValueContains_SelectedStructuralProperties2()
+        {
+            // Arrange
+            QueryCustomer aCustomer = new QueryCustomer
+            {
+                Name = "Peter",
+                HomeAddress = new QueryAddress
+                {
+                    Street = "MyStreet",
+                    AddressETag = 76.5
+                }
+            };
+
+            IEdmModel model = QueryModel;
+            IEdmEntityType customer = model.SchemaElements.OfType<IEdmEntityType>().FirstOrDefault(c => c.Name == "QueryCustomer");
+            Assert.NotNull(customer); // Guard
+
+            IEdmEntitySet customers = model.EntityContainer.FindEntitySet("Customers");
+            Assert.NotNull(customers);
+
+            string select = "Name";
+            SelectExpandClause selectExpandClause = ParseSelectExpand(select, null, model, customer, customers);
+            Assert.NotNull(selectExpandClause);
+
+            Expression source = Expression.Constant(aCustomer);
+
+            SelectExpandBinder binder = GetBinder<QueryCustomer>(model);
+
+            // Act
+            Expression projection = binder.ProjectAsWrapper(source, selectExpandClause, customer, customers);
+
+            // Assert
+            SelectExpandWrapper<QueryCustomer> customerWrapper = Expression.Lambda(projection).Compile().DynamicInvoke() as SelectExpandWrapper<QueryCustomer>;
+            var container = customerWrapper.Container.ToDictionary(new IdentityPropertyMapper());
+            Assert.Equal(aCustomer.Name, container["Name"]);
+        }
 
         #region GetSelectExpandProperties Tests
-
         [Theory]
         [InlineData("HomeAddress")] // $select=property
         [InlineData("Addresses")]
@@ -630,27 +715,22 @@ namespace Microsoft.AspNet.OData.Test.Query.Expressions
         [InlineData("Microsoft.AspNet.OData.Test.Query.Expressions.QueryVipCustomer/VipAddresses")]
         public void GetSelectExpandProperties_ForDirectProperty_OutputCorrectProperties(string select)
         {
-            // Arrange
-            IEdmModel model = QueryModel;
-            IEdmEntityType customer = model.SchemaElements.OfType<IEdmEntityType>().First(c => c.Name == "QueryCustomer");
-            IEdmEntitySet customers = model.EntityContainer.FindEntitySet("Customers");
-            Assert.NotNull(customers);
-
-            SelectExpandClause selectExpandClause = ParseSelectExpand(select, null, model, customer, customers);
-            Assert.False(selectExpandClause.AllSelected); // guard
-            SelectItem selectItem = selectExpandClause.SelectedItems.First();
-            PathSelectItem pathSelectItem = Assert.IsType<PathSelectItem>(selectItem); // Guard
-
-            // Act
+            // Arrange & Act
+            SelectExpandClause selectExpandClause;
             IDictionary<IEdmStructuralProperty, PathSelectItem> propertiesToInclude;
             IDictionary<IEdmNavigationProperty, ExpandedReferenceSelectItem> propertiesToExpand;
             ISet<IEdmStructuralProperty> autoSelectedProperties;
-            SelectExpandBinder.GetSelectExpandProperties(model, customer, customers, selectExpandClause,
+            bool isContainDynamicProperty = GetSelectExpandPropertiesHelper(select, null, out selectExpandClause,
                 out propertiesToInclude,
                 out propertiesToExpand,
                 out autoSelectedProperties);
 
             // Assert
+            Assert.False(selectExpandClause.AllSelected); // guard
+            SelectItem selectItem = selectExpandClause.SelectedItems.First();
+            PathSelectItem pathSelectItem = Assert.IsType<PathSelectItem>(selectItem); // Guard
+
+            Assert.False(isContainDynamicProperty);
             Assert.Null(propertiesToExpand); // No navigation property to expand
 
             Assert.NotNull(autoSelectedProperties); // auto select the keys
@@ -678,24 +758,18 @@ namespace Microsoft.AspNet.OData.Test.Query.Expressions
         [InlineData("HomeAddress,HomeAddress/Codes($top=2)")]
         public void GetSelectExpandProperties_ForSelectAllAndSelectSpecialy_OutputCorrectProperties(string select)
         {
-            // Arrange
-            IEdmModel model = QueryModel;
-            IEdmEntityType customer = model.SchemaElements.OfType<IEdmEntityType>().First(c => c.Name == "QueryCustomer");
-            IEdmEntitySet customers = model.EntityContainer.FindEntitySet("Customers");
-            Assert.NotNull(customers);
-
-            SelectExpandClause selectExpandClause = ParseSelectExpand(select, null, model, customer, customers);
-
-            // Act
+            // Arrange & Act
+            SelectExpandClause selectExpandClause;
             IDictionary<IEdmStructuralProperty, PathSelectItem> propertiesToInclude;
             IDictionary<IEdmNavigationProperty, ExpandedReferenceSelectItem> propertiesToExpand;
             ISet<IEdmStructuralProperty> autoSelectedProperties;
-            SelectExpandBinder.GetSelectExpandProperties(model, customer, customers, selectExpandClause,
+            bool isContainDynamicProperty = GetSelectExpandPropertiesHelper(select, null, out selectExpandClause,
                 out propertiesToInclude,
                 out propertiesToExpand,
                 out autoSelectedProperties);
 
             // Assert
+            Assert.False(isContainDynamicProperty);
             Assert.Null(propertiesToExpand);
 
             Assert.NotNull(autoSelectedProperties);
@@ -716,24 +790,18 @@ namespace Microsoft.AspNet.OData.Test.Query.Expressions
         [InlineData("HomeAddress($select=Street,Region,Codes)")]
         public void GetSelectExpandProperties_ForMultipleSubPropertiesSelection_OutputCorrectProperties(string select)
         {
-            // Arrange
-            IEdmModel model = QueryModel;
-            IEdmEntityType customer = model.SchemaElements.OfType<IEdmEntityType>().First(c => c.Name == "QueryCustomer");
-            IEdmEntitySet customers = model.EntityContainer.FindEntitySet("Customers");
-            Assert.NotNull(customers);
-
-            SelectExpandClause selectExpandClause = ParseSelectExpand(select, null, model, customer, customers);
-
-            // Act
+            // Arrange & Act
+            SelectExpandClause selectExpandClause;
             IDictionary<IEdmStructuralProperty, PathSelectItem> propertiesToInclude;
             IDictionary<IEdmNavigationProperty, ExpandedReferenceSelectItem> propertiesToExpand;
             ISet<IEdmStructuralProperty> autoSelectedProperties;
-            SelectExpandBinder.GetSelectExpandProperties(model, customer, customers, selectExpandClause,
+            bool isContainDynamicProperty = GetSelectExpandPropertiesHelper(select, null, out selectExpandClause,
                 out propertiesToInclude,
                 out propertiesToExpand,
                 out autoSelectedProperties);
 
             // Assert
+            Assert.False(isContainDynamicProperty);
             Assert.Null(propertiesToExpand); // No navigation property to expand
 
             Assert.NotNull(autoSelectedProperties); // auto select the keys
@@ -761,30 +829,39 @@ namespace Microsoft.AspNet.OData.Test.Query.Expressions
         }
 
         [Theory]
+        [InlineData("CustomerDynamicProperty1", true)]
+        [InlineData("CustomerDynamicProperty2", true)]
+        [InlineData("HomeAddress/AddressDynPriperty", false)]
+        public void GetSelectExpandProperties_ForDynamicProperty_OutputCorrectBoolean(string select, bool expect)
+        {
+            // Arrange & Act
+            SelectExpandClause selectExpandClause;
+            bool isContainDynamicProperty = GetSelectExpandPropertiesHelper(select, null, out selectExpandClause, out _, out _, out _);
+
+            // Assert
+            Assert.False(selectExpandClause.AllSelected); // guard
+            Assert.Equal(expect, isContainDynamicProperty);
+        }
+
+        [Theory]
         [InlineData("Orders")]
         [InlineData("PrivateOrder")]
         [InlineData("Microsoft.AspNet.OData.Test.Query.Expressions.QueryVipCustomer/SpecialOrder")]
         [InlineData("Microsoft.AspNet.OData.Test.Query.Expressions.QueryVipCustomer/SpecialOrders")]
         public void GetSelectExpandProperties_SkipForNavigationSelection(string select)
         {
-            // Arrange
-            IEdmModel model = QueryModel;
-            IEdmEntityType customer = model.SchemaElements.OfType<IEdmEntityType>().First(c => c.Name == "QueryCustomer");
-            IEdmEntitySet customers = model.EntityContainer.FindEntitySet("Customers");
-            Assert.NotNull(customers);
-
-            SelectExpandClause selectExpandClause = ParseSelectExpand(select, null, model, customer, customers);
-
-            // Act
+            // Arrange & Act
+            SelectExpandClause selectExpandClause;
             IDictionary<IEdmStructuralProperty, PathSelectItem> propertiesToInclude;
             IDictionary<IEdmNavigationProperty, ExpandedReferenceSelectItem> propertiesToExpand;
             ISet<IEdmStructuralProperty> autoSelectedProperties;
-            SelectExpandBinder.GetSelectExpandProperties(model, customer, customers, selectExpandClause,
+            bool isContainDynamicProperty = GetSelectExpandPropertiesHelper(select, null, out selectExpandClause,
                 out propertiesToInclude,
                 out propertiesToExpand,
                 out autoSelectedProperties);
 
             // Assert
+            Assert.False(isContainDynamicProperty);
             Assert.Null(propertiesToInclude);
             Assert.Null(propertiesToExpand);
 
@@ -802,32 +879,27 @@ namespace Microsoft.AspNet.OData.Test.Query.Expressions
         [InlineData("Microsoft.AspNet.OData.Test.Query.Expressions.QueryVipCustomer/SpecialOrders")]
         [InlineData("Microsoft.AspNet.OData.Test.Query.Expressions.QueryVipCustomer/SpecialOrders/$ref")]
         [InlineData("Microsoft.AspNet.OData.Test.Query.Expressions.QueryVipCustomer/SpecialOrders($search=abc)")]
-        public void ProcessExpandedItem_ForDirectNavigationProperty_ReturnsCorrectExpandedProperties(string expandPath)
+        public void GetSelectExpandProperties_ForDirectNavigationProperty_ReturnsProperties(string expand)
         {
-            // Arrange
-            IEdmModel model = QueryModel;
+            // Arrange & Act
+            SelectExpandClause selectExpandClause;
+            IDictionary<IEdmStructuralProperty, PathSelectItem> propertiesToInclude;
+            IDictionary<IEdmNavigationProperty, ExpandedReferenceSelectItem> propertiesToExpand;
+            ISet<IEdmStructuralProperty> autoSelectedProperties;
+            bool isContainDynamicProperty = GetSelectExpandPropertiesHelper(null, expand, out selectExpandClause,
+                out propertiesToInclude,
+                out propertiesToExpand,
+                out autoSelectedProperties);
 
-            IEdmEntityType customer = model.SchemaElements.OfType<IEdmEntityType>().FirstOrDefault(c => c.Name == "QueryCustomer");
-            Assert.NotNull(customer); // Guard
-
-            IEdmEntitySet customers = model.EntityContainer.FindEntitySet("Customers");
-            Assert.NotNull(customers);
-
-            SelectExpandClause selectExpandClause = ParseSelectExpand(null, expandPath, model, customer, customers);
-            Assert.NotNull(selectExpandClause);
-
+            // Assert
             var selectItem = Assert.Single(selectExpandClause.SelectedItems);
             ExpandedReferenceSelectItem expandedItem = selectItem as ExpandedReferenceSelectItem;
             Assert.NotNull(expandedItem);
             var navigationSegment = expandedItem.PathToNavigationProperty.First(p => p is NavigationPropertySegment) as NavigationPropertySegment;
 
-            // Act
-            var currentLevelPropertiesInclude = new Dictionary<IEdmStructuralProperty, SelectExpandIncludeProperty>();
-            IDictionary<IEdmNavigationProperty, ExpandedReferenceSelectItem> propertiesToExpand = null;
-            SelectExpandBinder.ProcessExpandedItem(expandedItem, customers, currentLevelPropertiesInclude, ref propertiesToExpand);
-
-            // Assert
-            Assert.Empty(currentLevelPropertiesInclude);
+            Assert.False(isContainDynamicProperty); // not container dynamic properties selection
+            Assert.Null(propertiesToInclude); // no structural properties to include
+            Assert.Null(autoSelectedProperties); // no auto select properties
 
             Assert.NotNull(propertiesToExpand);
             var propertyToExpand = Assert.Single(propertiesToExpand);
@@ -857,41 +929,33 @@ namespace Microsoft.AspNet.OData.Test.Query.Expressions
         [InlineData("Addresses/Microsoft.AspNet.OData.Test.Query.Expressions.QueryCnAddress/CnCities")]
         [InlineData("Microsoft.AspNet.OData.Test.Query.Expressions.QueryVipCustomer/VipAddress/Microsoft.AspNet.OData.Test.Query.Expressions.QueryCnAddress/CnCities")]
         [InlineData("Microsoft.AspNet.OData.Test.Query.Expressions.QueryVipCustomer/VipAddresses/Microsoft.AspNet.OData.Test.Query.Expressions.QueryUsAddress/UsCities")]
-        public void ProcessExpandedItem_ForNonDirectNavigationProperty_ReturnsCorrectExpandedProperties(string expandPath)
+        public void GetSelectExpandProperties_ForNonDirectNavigationProperty_ReturnsCorrectExpandedProperties(string expand)
         {
-            // Arrange
-            IEdmModel model = QueryModel;
+            // Arrange & Act
+            SelectExpandClause selectExpandClause;
+            IDictionary<IEdmStructuralProperty, PathSelectItem> propertiesToInclude;
+            IDictionary<IEdmNavigationProperty, ExpandedReferenceSelectItem> propertiesToExpand;
+            ISet<IEdmStructuralProperty> autoSelectedProperties;
+            bool isContainDynamicProperty = GetSelectExpandPropertiesHelper(null, expand, out selectExpandClause,
+                out propertiesToInclude,
+                out propertiesToExpand,
+                out autoSelectedProperties);
 
-            IEdmEntityType customer = model.SchemaElements.OfType<IEdmEntityType>().FirstOrDefault(c => c.Name == "QueryCustomer");
-            Assert.NotNull(customer); // Guard
-
-            IEdmEntitySet customers = model.EntityContainer.FindEntitySet("Customers");
-            Assert.NotNull(customers);
-
-            SelectExpandClause selectExpandClause = ParseSelectExpand(null, expandPath, model, customer, customers);
-            Assert.NotNull(selectExpandClause);
-
+            // Assert
             var selectItem = Assert.Single(selectExpandClause.SelectedItems);
             ExpandedReferenceSelectItem expandedItem = selectItem as ExpandedReferenceSelectItem;
             Assert.NotNull(expandedItem);
             var propertySegment = expandedItem.PathToNavigationProperty.First(p => p is PropertySegment) as PropertySegment;
 
-            // Act
-            var currentLevelPropertiesInclude = new Dictionary<IEdmStructuralProperty, SelectExpandIncludeProperty>();
-            IDictionary<IEdmNavigationProperty, ExpandedReferenceSelectItem> propertiesToExpand = null;
-            SelectExpandBinder.ProcessExpandedItem(expandedItem, customers, currentLevelPropertiesInclude, ref propertiesToExpand);
-
-            // Assert
             Assert.Null(propertiesToExpand); // nothing to expand at current level
 
-            Assert.NotEmpty(currentLevelPropertiesInclude);
-            var propertyToInclude = Assert.Single(currentLevelPropertiesInclude);
+            Assert.NotEmpty(propertiesToInclude);
+            var propertyToInclude = Assert.Single(propertiesToInclude);
 
             Assert.Same(propertySegment.Property, propertyToInclude.Key);
             Assert.NotNull(propertyToInclude.Value);
 
-            SelectExpandIncludeProperty includePropert = propertyToInclude.Value;
-            PathSelectItem pathItem = includePropert.ToPathSelectItem();
+            PathSelectItem pathItem = propertyToInclude.Value;
             Assert.NotNull(pathItem);
             Assert.NotNull(pathItem.SelectAndExpand);
             Assert.True(pathItem.SelectAndExpand.AllSelected);
@@ -900,18 +964,51 @@ namespace Microsoft.AspNet.OData.Test.Query.Expressions
             Assert.NotNull(nextLevelExpandedItem);
         }
 
-        [Theory]
-        [InlineData("Name")]
-        [InlineData("Emails")]
-        [InlineData("FarivateColor")]
-        [InlineData("HomeAddress")]
-        [InlineData("Addresses")]
-        [InlineData("Microsoft.AspNet.OData.Test.Query.Expressions.QueryVipCustomer/Birthday")]
-        [InlineData("Microsoft.AspNet.OData.Test.Query.Expressions.QueryVipCustomer/VipAddress")]
-        [InlineData("Microsoft.AspNet.OData.Test.Query.Expressions.QueryVipCustomer/VipAddresses")]
-        public void ProcessSelectedItem_ForDirectStructuralProperty_ReturnsCorrectExpandedProperties(string selectPath)
+        [Fact]
+        public void GetSelectExpandProperties_FoSelectAndExpand_ReturnsCorrectExpandedProperties()
         {
             // Arrange
+            string select = "HomeAddress($select=Street),Addresses/Codes($top=2)";
+            string expand = "HomeAddress/RelatedCity/$ref,HomeAddress/Cities($count=true),PrivateOrder";
+
+            // Act
+            SelectExpandClause selectExpandClause;
+            IDictionary<IEdmStructuralProperty, PathSelectItem> propertiesToInclude;
+            IDictionary<IEdmNavigationProperty, ExpandedReferenceSelectItem> propertiesToExpand;
+            ISet<IEdmStructuralProperty> autoSelectedProperties;
+            bool isContainDynamicProperty = GetSelectExpandPropertiesHelper(select, expand, out selectExpandClause,
+                out propertiesToInclude,
+                out propertiesToExpand,
+                out autoSelectedProperties);
+
+            // Arrange
+            Assert.False(isContainDynamicProperty);
+
+            Assert.NotNull(selectExpandClause);
+            Assert.False(selectExpandClause.AllSelected);
+
+            // Why it's 6, because ODL includes "HomeAddress" as Selected automatic when parsing $expand=HomeAddress/Nav
+            // It's an issue reported at: https://github.com/OData/odata.net/issues/1574
+            Assert.Equal(6, selectExpandClause.SelectedItems.Count());
+
+            Assert.NotNull(propertiesToInclude);
+            Assert.Equal(2, propertiesToInclude.Count);
+            Assert.Equal(new[] { "HomeAddress", "Addresses" }, propertiesToInclude.Keys.Select(e => e.Name));
+
+            Assert.NotNull(propertiesToExpand);
+            var propertyToExpand = Assert.Single(propertiesToExpand);
+            Assert.Equal("PrivateOrder", propertyToExpand.Key.Name);
+
+            Assert.NotNull(autoSelectedProperties);
+            Assert.Equal("Id", Assert.Single(autoSelectedProperties).Name);
+        }
+
+        private static bool GetSelectExpandPropertiesHelper(string select, string expand,
+            out SelectExpandClause selectExpandClause,
+            out IDictionary<IEdmStructuralProperty, PathSelectItem> propertiesToInclude,
+            out IDictionary<IEdmNavigationProperty, ExpandedReferenceSelectItem> propertiesToExpand,
+            out ISet<IEdmStructuralProperty> autoSelectedProperties)
+        {
             IEdmModel model = QueryModel;
 
             IEdmEntityType customer = model.SchemaElements.OfType<IEdmEntityType>().FirstOrDefault(c => c.Name == "QueryCustomer");
@@ -920,25 +1017,13 @@ namespace Microsoft.AspNet.OData.Test.Query.Expressions
             IEdmEntitySet customers = model.EntityContainer.FindEntitySet("Customers");
             Assert.NotNull(customers);
 
-            SelectExpandClause selectExpandClause = ParseSelectExpand(selectPath, null);
+            selectExpandClause = ParseSelectExpand(select, expand, model, customer, customers);
             Assert.NotNull(selectExpandClause);
 
-            var selectItem = Assert.Single(selectExpandClause.SelectedItems);
-            PathSelectItem selectedItem = selectItem as PathSelectItem;
-            Assert.NotNull(selectedItem);
-            var propertySegment = selectedItem.SelectedPath.First(p => p is PropertySegment) as PropertySegment;
-
-            // Act
-            var currentLevelPropertiesInclude = new Dictionary<IEdmStructuralProperty, SelectExpandIncludeProperty>();
-            SelectExpandBinder.ProcessSelectedItem(selectedItem, customers, currentLevelPropertiesInclude);
-
-            // Assert
-            Assert.NotEmpty(currentLevelPropertiesInclude);
-
-            var propertyToInclude = Assert.Single(currentLevelPropertiesInclude);
-
-            Assert.Same(propertySegment.Property, propertyToInclude.Key);
-            Assert.NotNull(propertyToInclude.Value);
+            return SelectExpandBinder.GetSelectExpandProperties(model, customer, customers, selectExpandClause,
+                out propertiesToInclude,
+                out propertiesToExpand,
+                out autoSelectedProperties);
         }
         #endregion
 
@@ -1642,7 +1727,12 @@ namespace Microsoft.AspNet.OData.Test.Query.Expressions
 
         public QueryCity RelatedCity { get; set; }
 
+        [ConcurrencyCheck]
+        public double AddressETag { get; set; }
+
         public IList<QueryCity> Cities { get; set; }
+
+        public IDictionary<string, object> AddressDynaicProperties { get; set; }
     }
 
     public class QueryUsAddress : QueryAddress
@@ -1677,6 +1767,9 @@ namespace Microsoft.AspNet.OData.Test.Query.Expressions
         public string Name { get; set; }
 
         public IList<string> Emails { get; set; }
+
+        [ConcurrencyCheck]
+        public double CustomerETag { get; set; }
 
         public QueryColor FarivateColor { get; set; }
 

@@ -270,8 +270,6 @@ namespace Microsoft.AspNet.OData.Query.Expressions
             return propertyValue;
         }
 
-
-
         // Generates the expression
         //      source => new Wrapper { Instance = source, Container = new PropertyContainer { ..expanded properties.. } }
         internal Expression ProjectElement(Expression source, SelectExpandClause selectExpandClause, IEdmStructuredType structuredType, IEdmNavigationSource navigationSource)
@@ -331,9 +329,12 @@ namespace Microsoft.AspNet.OData.Query.Expressions
                 IDictionary<IEdmNavigationProperty, ExpandedReferenceSelectItem> propertiesToExpand;
                 ISet<IEdmStructuralProperty> autoSelectedProperties;
 
-                GetSelectExpandProperties(_model, structuredType, navigationSource, selectExpandClause, out propertiesToInclude, out propertiesToExpand, out autoSelectedProperties);
+                bool isContainDynamicPropertySelection = GetSelectExpandProperties(_model, structuredType, navigationSource, selectExpandClause,
+                    out propertiesToInclude,
+                    out propertiesToExpand,
+                    out autoSelectedProperties);
 
-                bool isSelectingOpenTypeSegments = GetSelectsOpenTypeSegments(selectExpandClause, structuredType);
+                bool isSelectingOpenTypeSegments = isContainDynamicPropertySelection || IsSelectsOpenTypeSegments(selectExpandClause, structuredType);
 
                 if (propertiesToExpand != null || propertiesToInclude != null || autoSelectedProperties != null || isSelectingOpenTypeSegments)
                 {
@@ -366,7 +367,8 @@ namespace Microsoft.AspNet.OData.Query.Expressions
         /// <param name="propertiesToInclude">The out properties to include at current level, could be null.</param>
         /// <param name="propertiesToExpand">The out properties to expand at current level, could be null.</param>
         /// <param name="autoSelectedProperties">The out auto selected properties to include at current level, could be null.</param>
-        internal static void GetSelectExpandProperties(IEdmModel model, IEdmStructuredType structuredType, IEdmNavigationSource navigationSource,
+        /// <returns>true if the select contains dynamic property selection, false if it's not.</returns>
+        internal static bool GetSelectExpandProperties(IEdmModel model, IEdmStructuredType structuredType, IEdmNavigationSource navigationSource,
             SelectExpandClause selectExpandClause,
             out IDictionary<IEdmStructuralProperty, PathSelectItem> propertiesToInclude,
             out IDictionary<IEdmNavigationProperty, ExpandedReferenceSelectItem> propertiesToExpand,
@@ -382,6 +384,7 @@ namespace Microsoft.AspNet.OData.Query.Expressions
             propertiesToExpand = null;
             autoSelectedProperties = null;
 
+            bool isContainDynamicPropertySelect = false;
             var currentLevelPropertiesInclude = new Dictionary<IEdmStructuralProperty, SelectExpandIncludeProperty>();
             foreach (SelectItem selectItem in selectExpandClause.SelectedItems)
             {
@@ -397,12 +400,15 @@ namespace Microsoft.AspNet.OData.Query.Expressions
                 PathSelectItem pathItem = selectItem as PathSelectItem;
                 if (pathItem != null)
                 {
-                    ProcessSelectedItem(pathItem, navigationSource, currentLevelPropertiesInclude);
+                    if (ProcessSelectedItem(pathItem, navigationSource, currentLevelPropertiesInclude))
+                    {
+                        isContainDynamicPropertySelect = true;
+                    }
                     continue;
                 }
 
                 // Skip processing the "WildcardSelectItem and NamespaceQualifiedWildcardSelectItem"
-                // ODL now doesn't support "$select=any/*" and "$select=any/NS.*"
+                // ODL now doesn't support "$select=property/*" and "$select=property/NS.*"
             }
 
             if (!IsSelectAll(selectExpandClause))
@@ -431,14 +437,17 @@ namespace Microsoft.AspNet.OData.Query.Expressions
                     IEnumerable<IEdmStructuralProperty> concurrencyProperties = model.GetConcurrencyProperties(navigationSource);
                     foreach (IEdmStructuralProperty concurrencyProperty in concurrencyProperties)
                     {
-                        if (!currentLevelPropertiesInclude.Keys.Contains(concurrencyProperty))
+                        if (concurrencyProperty.DeclaringType == structuredType)
                         {
-                            if (autoSelectedProperties == null)
+                            if (!currentLevelPropertiesInclude.Keys.Contains(concurrencyProperty))
                             {
-                                autoSelectedProperties = new HashSet<IEdmStructuralProperty>();
-                            }
+                                if (autoSelectedProperties == null)
+                                {
+                                    autoSelectedProperties = new HashSet<IEdmStructuralProperty>();
+                                }
 
-                            autoSelectedProperties.Add(concurrencyProperty);
+                                autoSelectedProperties.Add(concurrencyProperty);
+                            }
                         }
                     }
                 }
@@ -452,6 +461,8 @@ namespace Microsoft.AspNet.OData.Query.Expressions
                     propertiesToInclude[propertiesInclude.Key] = propertiesInclude.Value == null ? null : propertiesInclude.Value.ToPathSelectItem();
                 }
             }
+
+            return isContainDynamicPropertySelect;
         }
 
         /// <summary>
@@ -461,7 +472,7 @@ namespace Microsoft.AspNet.OData.Query.Expressions
         /// <param name="navigationSource">The navigation source.</param>
         /// <param name="currentLevelPropertiesInclude">The current level properties included.</param>
         /// <param name="propertiesToExpand">out/ref, the property expanded.</param>
-        internal static void ProcessExpandedItem(ExpandedReferenceSelectItem expandedItem,
+        private static void ProcessExpandedItem(ExpandedReferenceSelectItem expandedItem,
             IEdmNavigationSource navigationSource,
             IDictionary<IEdmStructuralProperty, SelectExpandIncludeProperty> currentLevelPropertiesInclude,
             ref IDictionary<IEdmNavigationProperty, ExpandedReferenceSelectItem> propertiesToExpand)
@@ -476,7 +487,7 @@ namespace Microsoft.AspNet.OData.Query.Expressions
             PropertySegment firstStructuralPropertySegment = firstPropertySegment as PropertySegment;
             if (firstStructuralPropertySegment != null)
             {
-                // for example: $expand=abc/xyz, the remaining segments should never be null because at least the last navigation segment is there.
+                // for example: $expand=abc/nav, the remaining segments should never be null because at least the last navigation segment is there.
                 Contract.Assert(remainingSegments != null);
 
                 SelectExpandIncludeProperty newPropertySelectItem;
@@ -494,7 +505,7 @@ namespace Microsoft.AspNet.OData.Query.Expressions
             }
             else
             {
-                // for example: $expand=xyz, if we couldn't find a structural property in the path, it means we get the last navigation segment.
+                // for example: $expand=nav, if we couldn't find a structural property in the path, it means we get the last navigation segment.
                 // So, the remaing segments should be null and the last segment should be "NavigationPropertySegment".
                 Contract.Assert(remainingSegments == null);
 
@@ -518,7 +529,8 @@ namespace Microsoft.AspNet.OData.Query.Expressions
         /// <param name="pathSelectItem">The selected item.</param>
         /// <param name="navigationSource">The navigation source.</param>
         /// <param name="currentLevelPropertiesInclude">The current level properties included.</param>
-        internal static void ProcessSelectedItem(PathSelectItem pathSelectItem,
+        /// <returns>true if it's dynamic property selection, false if it's not.</returns>
+        private static bool ProcessSelectedItem(PathSelectItem pathSelectItem,
             IEdmNavigationSource navigationSource,
             IDictionary<IEdmStructuralProperty, SelectExpandIncludeProperty> currentLevelPropertiesInclude)
         {
@@ -548,12 +560,25 @@ namespace Microsoft.AspNet.OData.Query.Expressions
             }
             else
             {
-                // Do nothing here, because if we can't find a PropertySegment, the $select path maybe selecting an operation, or dynamic property.
-                // We needn't process the operation selection, for dynamic property is processed individually.
+                // If we can't find a PropertySegment, the $select path maybe selecting an operation, a navigation or dynamic property.
+                // And the remaing segments should be null.
+                Contract.Assert(remainingSegments == null);
+
+                // For operation (action/function), needn't process it.
+                // For navigation property, needn't process it here.
+
+                // For dynamic property, let's test the last segment for this path select item.
+                // It's safe to test the last segment because we can't find a property before that.
+                if (pathSelectItem.SelectedPath.LastSegment is DynamicPathSegment)
+                {
+                    return true;
+                }
             }
+
+            return false;
         }
 
-        private static bool GetSelectsOpenTypeSegments(SelectExpandClause selectExpandClause, IEdmStructuredType structuredType)
+        private static bool IsSelectsOpenTypeSegments(SelectExpandClause selectExpandClause, IEdmStructuredType structuredType)
         {
             if (structuredType == null || !structuredType.IsOpen)
             {
@@ -565,7 +590,7 @@ namespace Microsoft.AspNet.OData.Query.Expressions
                 return true;
             }
 
-            return selectExpandClause.SelectedItems.OfType<PathSelectItem>().Any(x => x.SelectedPath.LastSegment is DynamicPathSegment);
+            return false;
         }
 
         private Expression CreateTotalCountExpression(Expression source, bool? countOption)
