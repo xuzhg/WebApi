@@ -854,6 +854,10 @@ namespace Microsoft.AspNet.OData.Test.Query.Expressions
         public void ProjectAsWrapper_ReturnsKeysAndConcurrencyProperties_EvenIfNotPresentInSelectClause(string select, bool containAddress, int count)
         {
             // Arrange
+            IEdmStructuralProperty etagProperty =  _customer.DeclaredStructuralProperties().FirstOrDefault(c => c.Name == "CustomerETag");
+            Assert.NotNull(etagProperty); // Guard
+            ((EdmModel)_model).SetOptimisticConcurrencyAnnotation(_customers, new[] { etagProperty });
+
             QueryCustomer aCustomer = new QueryCustomer
             {
                 Id = 42,
@@ -965,7 +969,7 @@ namespace Microsoft.AspNet.OData.Test.Query.Expressions
             Assert.Null(propertiesToExpand);
 
             Assert.NotNull(autoSelectedProperties);
-            Assert.Equal("Id", Assert.Single(autoSelectedProperties).Name);
+            Assert.Equal("Id", Assert.Single(autoSelectedProperties).Name); // Key and ETag
 
             Assert.NotNull(propertiesToInclude);
             var propertyToInclude = Assert.Single(propertiesToInclude);
@@ -999,7 +1003,7 @@ namespace Microsoft.AspNet.OData.Test.Query.Expressions
             Assert.False(isContainDynamicProperty);
             Assert.Null(propertiesToExpand); // No navigation property to expand
 
-            Assert.NotNull(autoSelectedProperties); // auto select the keys
+            Assert.NotNull(autoSelectedProperties); // auto select the keys & ETags
             Assert.Equal("Id", Assert.Single(autoSelectedProperties).Name);
 
             Assert.NotNull(propertiesToInclude); // has one structural property to select
@@ -1403,7 +1407,7 @@ namespace Microsoft.AspNet.OData.Test.Query.Expressions
             Assert.Equal(ExpressionType.Convert, conditionalExpression.IfFalse.NodeType);
             UnaryExpression falseUnaryExpression = conditionalExpression.IfFalse as UnaryExpression;
             Assert.NotNull(falseUnaryExpression);
-            Assert.Equal(String.Format("{0}.ID", customer.ToString()), falseUnaryExpression.Operand.ToString());
+            Assert.Equal(String.Format("{0}.Id", customer.ToString()), falseUnaryExpression.Operand.ToString());
             Assert.Equal(typeof(int?), falseUnaryExpression.Type);
 
             Assert.Equal(ExpressionType.Constant, conditionalExpression.IfTrue.NodeType);
@@ -1429,9 +1433,9 @@ namespace Microsoft.AspNet.OData.Test.Query.Expressions
             Expression property = _binder.CreatePropertyValueExpression(_customer, idProperty, customer, filterClause: null);
 
 #if NETCORE
-            Assert.Equal(String.Format("Convert({0}.ID, Nullable`1)", customer.ToString()), property.ToString());
+            Assert.Equal(String.Format("Convert({0}.Id, Nullable`1)", customer.ToString()), property.ToString());
 #else
-            Assert.Equal(String.Format("Convert({0}.ID)", customer.ToString()), property.ToString());
+            Assert.Equal(String.Format("Convert({0}.Id)", customer.ToString()), property.ToString());
 #endif
             Assert.Equal(typeof(int?), property.Type);
         }
@@ -1517,7 +1521,7 @@ namespace Microsoft.AspNet.OData.Test.Query.Expressions
             Assert.Equal(
                 string.Format(
                     "IIF((value({0}) == null), null, IIF((value({0}).Orders == null), null, " +
-                    "value({0}).Orders.Where($it => ($it.ID == value({1}).TypedProperty))))",
+                    "value({0}).Orders.Where($it => ($it.Id == value({1}).TypedProperty))))",
                     customer.Type,
                     "Microsoft.AspNet.OData.Query.Expressions.LinqParameterContainer+TypedLinqParameterContainer`1[System.Int32]"),
                 filterInExpand.ToString());
@@ -1574,7 +1578,7 @@ namespace Microsoft.AspNet.OData.Test.Query.Expressions
                 _model,
                 _customer,
                 _customers,
-                new Dictionary<string, string> { { "$filter", "ID eq 1" } });
+                new Dictionary<string, string> { { "$filter", "Id eq 1" } });
             var filterClause = parser.ParseFilter();
             ExpandedNavigationSelectItem expandItem = new ExpandedNavigationSelectItem(new ODataExpandPath(new NavigationPropertySegment(_order.NavigationProperties().Single(), navigationSource: _customers)),
                             null, null, filterClause, null, null, null, null, null, null);
@@ -1649,7 +1653,7 @@ namespace Microsoft.AspNet.OData.Test.Query.Expressions
             Assert.Equal(
                 string.Format(
                     "IIF((value({0}) == null), null, IIF((value({0}).Customer == null), null, " +
-                    "IIF((value({0}).Customer.ID != value(Microsoft.AspNet.OData.Query.Expressions.LinqParameterContainer+TypedLinqParameterContainer`1[System.Int32]).TypedProperty), " +
+                    "IIF((value({0}).Customer.Id != value(Microsoft.AspNet.OData.Query.Expressions.LinqParameterContainer+TypedLinqParameterContainer`1[System.Int32]).TypedProperty), " +
                     "value({0}).Customer, null)))",
                     order.Type),
                 filterInExpand.ToString());
@@ -1911,7 +1915,7 @@ namespace Microsoft.AspNet.OData.Test.Query.Expressions
 
         public IList<string> Emails { get; set; }
 
-        [ConcurrencyCheck]
+        // [ConcurrencyCheck]
         public double CustomerETag { get; set; }
 
         public QueryColor FarivateColor { get; set; }

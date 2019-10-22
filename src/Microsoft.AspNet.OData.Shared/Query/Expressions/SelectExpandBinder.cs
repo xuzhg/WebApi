@@ -22,26 +22,10 @@ namespace Microsoft.AspNet.OData.Query.Expressions
     [SuppressMessage("Microsoft.Maintainability", "CA1506:AvoidExcessiveClassCoupling", Justification = "Class coupling acceptable.")]
     internal class SelectExpandBinder
     {
-     //   private SelectExpandQueryOption _selectExpandQuery;
         private ODataQueryContext _context;
         private IEdmModel _model;
         private ODataQuerySettings _settings;
         private string _modelID;
-
-        public SelectExpandBinder(ODataQuerySettings settings, SelectExpandQueryOption selectExpandQuery)
-        {
-            Contract.Assert(settings != null);
-            Contract.Assert(selectExpandQuery != null);
-            Contract.Assert(selectExpandQuery.Context != null);
-            Contract.Assert(selectExpandQuery.Context.Model != null);
-            Contract.Assert(settings.HandleNullPropagation != HandleNullPropagationOption.Default);
-
-        //    _selectExpandQuery = selectExpandQuery;
-            _context = selectExpandQuery.Context;
-            _model = _context.Model;
-            _modelID = ModelContainer.GetModelID(_model);
-            _settings = settings;
-        }
 
         public SelectExpandBinder(ODataQuerySettings settings, ODataQueryContext context)
         {

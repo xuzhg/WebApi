@@ -348,7 +348,7 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
                         writer.WriteStart(resource);
                         WriteComplexProperties(selectExpandNode, resourceContext, writer);
                         WriteDynamicComplexProperties(resourceContext, writer);
-                        WriteNavigationLinks(selectExpandNode.SelectedNavigationProperties, resourceContext, writer);
+                        WriteNavigationLinks(selectExpandNode, resourceContext, writer);
                         WriteExpandedNavigationProperties(selectExpandNode, resourceContext, writer);
                         WriteReferencedNavigationProperties(selectExpandNode, resourceContext, writer);
                         writer.WriteEnd();
@@ -417,7 +417,7 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
             ODataResource resource = new ODataResource
             {
                 TypeName = typeName,
-                Properties = CreateStructuralPropertyBag(selectExpandNode.SelectedStructuralProperties, resourceContext),
+                Properties = CreateStructuralPropertyBag(selectExpandNode, resourceContext),
             };
 
             if (resourceContext.EdmObject is EdmDeltaEntityObject && resourceContext.NavigationSource != null)
@@ -663,16 +663,18 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
         /// <summary>
         /// Write the navigation link for the select navigation properties.
         /// </summary>
-        private void WriteNavigationLinks(ISet<IEdmNavigationProperty> navigationProperties, ResourceContext resourceContext, ODataWriter writer)
+        private void WriteNavigationLinks(SelectExpandNode selectExpandNode, ResourceContext resourceContext, ODataWriter writer)
         {
-            if (navigationProperties == null)
+            Contract.Assert(selectExpandNode != null);
+            Contract.Assert(resourceContext != null);
+
+            if (selectExpandNode.SelectedNavigationProperties == null)
             {
                 return;
             }
 
-            Contract.Assert(resourceContext != null);
 
-            IEnumerable<ODataNestedResourceInfo> navigationLinks = CreateNavigationLinks(navigationProperties, resourceContext);
+            IEnumerable<ODataNestedResourceInfo> navigationLinks = CreateNavigationLinks(selectExpandNode.SelectedNavigationProperties, resourceContext);
             foreach (ODataNestedResourceInfo navigationLink in navigationLinks)
             {
                 writer.WriteStart(navigationLink);
@@ -944,12 +946,17 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
             return navigationLink;
         }
 
-        private IEnumerable<ODataProperty> CreateStructuralPropertyBag(
-            IEnumerable<IEdmStructuralProperty> structuralProperties, ResourceContext resourceContext)
+        private IEnumerable<ODataProperty> CreateStructuralPropertyBag(SelectExpandNode selectExpandNode, ResourceContext resourceContext)
         {
-            Contract.Assert(structuralProperties != null);
+            Contract.Assert(selectExpandNode != null);
             Contract.Assert(resourceContext != null);
 
+            if (selectExpandNode.SelectedStructuralProperties == null)
+            {
+                return Enumerable.Empty<ODataProperty>();
+            }
+
+            IEnumerable<IEdmStructuralProperty> structuralProperties = selectExpandNode.SelectedStructuralProperties;
             List<ODataProperty> properties = new List<ODataProperty>();
 
             if (null != resourceContext.EdmObject && resourceContext.EdmObject.IsDeltaResource())
