@@ -76,6 +76,58 @@ namespace Microsoft.AspNet.OData.Query.Expressions
         }
 
         /// <summary>
+        /// Gets the merged path $select and $expand item for this property.
+        /// </summary>
+        /// <returns>Null or the created <see cref="SelectExpandClause"/>.</returns>
+        public SelectExpandClause GetSubSelectExpand()
+        {
+            if (_subSelectItems == null)
+            {
+                if (_propertySelectItem != null)
+                {
+                    return _propertySelectItem.SelectAndExpand;
+                }
+
+                return null;
+            }
+
+            // so, _subSelectItems is not null, merge the select and expand from the property into the _subSelectItems
+            bool IsSelectAll = false;
+            if (_propertySelectItem != null && _propertySelectItem.SelectAndExpand != null)
+            {
+                // Retrieve the "IsSelectAll" from the property sub selectexpand clause.
+                IsSelectAll = this._propertySelectItem.SelectAndExpand.AllSelected;
+                foreach (var selectItem in this._propertySelectItem.SelectAndExpand.SelectedItems)
+                {
+                    _subSelectItems.Add(selectItem);
+                }
+            }
+
+            if (IsSelectAll)
+            {
+                // We do nothing here, because the property itself tells us to select all.
+                // Meanwhile, ODL doesn't allow $select=abc,abc(...), so it's safe to use "SelectAll".
+            }
+            else
+            {
+                // Mark selectall equals "true" if only include $expand
+                // So, if only "$expand=abc/nav", it means to select all for "abc" then expand "nav".
+                IsSelectAll = true;
+                foreach (var item in _subSelectItems)
+                {
+                    // only include $expand=...., means selectAll as true
+                    if (!(item is ExpandedNavigationSelectItem || item is ExpandedReferenceSelectItem))
+                    {
+                        IsSelectAll = false;
+                        break;
+                    }
+                }
+            }
+
+            return new SelectExpandClause(_subSelectItems, IsSelectAll);
+        }
+
+        /// <summary>
         /// Gets the merged path select item for this property, <see cref="PathSelectItem"/>.
         /// </summary>
         /// <returns>Null or the created <see cref="PathSelectItem"/>.</returns>
@@ -86,47 +138,40 @@ namespace Microsoft.AspNet.OData.Query.Expressions
                 return _propertySelectItem;
             }
 
-            bool IsSelectAll = false;
+            // so, _subSelectItems is not null, merge the select and expand from the property into the _subSelectItems
+            bool isSelectAll = false;
             if (_propertySelectItem != null && _propertySelectItem.SelectAndExpand != null)
             {
-                IsSelectAll = this._propertySelectItem.SelectAndExpand.AllSelected;
+                // Retrieve the "IsSelectAll" from the property sub selectexpand clause.
+                isSelectAll = this._propertySelectItem.SelectAndExpand.AllSelected;
                 foreach (var selectItem in this._propertySelectItem.SelectAndExpand.SelectedItems)
                 {
-                    if (_subSelectItems == null)
-                    {
-                        _subSelectItems = new List<SelectItem>();
-                    }
-
                     _subSelectItems.Add(selectItem);
                 }
             }
 
-            SelectExpandClause subSelectExpandClause = null;
-            if (_subSelectItems != null && _subSelectItems.Count > 0)
+            if (isSelectAll)
             {
-                if (IsSelectAll)
+                // We do nothing here, because the property itself tells us to select all.
+                // Meanwhile, ODL doesn't allow $select=abc,abc(...), so it's safe to use "SelectAll".
+            }
+            else
+            {
+                // Mark selectall equals "true" if only include $expand
+                // So, if only "$expand=abc/nav", it means to select all for "abc" then expand "nav".
+                isSelectAll = true;
+                foreach (var item in _subSelectItems)
                 {
-                    // We do nothing here, because the property itself tells us to select all.
-                    // besides, ODL doesn't allow $select=abc,abc(...)
-                }
-                else
-                {
-                    // Mark selectall equals "true" if only include $expand
-                    // So, if only "$expand=abc/nav", it means to select all for "abc" and expand "nav" to "abc".
-                    IsSelectAll = true;
-                    foreach (var item in _subSelectItems)
+                    // only include $expand=...., means selectAll as true
+                    if (!(item is ExpandedNavigationSelectItem || item is ExpandedReferenceSelectItem))
                     {
-                        // only include $expand=...., means selectAll as true
-                        if (!(item is ExpandedNavigationSelectItem || item is ExpandedReferenceSelectItem))
-                        {
-                            IsSelectAll = false;
-                            break;
-                        }
+                        isSelectAll = false;
+                        break;
                     }
                 }
-
-                subSelectExpandClause = new SelectExpandClause(_subSelectItems, IsSelectAll);
             }
+
+            SelectExpandClause subSelectExpandClause = new SelectExpandClause(_subSelectItems, isSelectAll);
 
             if (_propertySelectItem == null && subSelectExpandClause == null)
             {

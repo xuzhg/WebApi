@@ -5,7 +5,6 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics.Contracts;
 using System.Linq;
-using System.Runtime.CompilerServices;
 using Microsoft.AspNet.OData.Builder;
 using Microsoft.AspNet.OData.Common;
 using Microsoft.AspNet.OData.Query.Expressions;
@@ -27,7 +26,6 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
         /// <remarks>The default constructor is for unit testing only.</remarks>
         public SelectExpandNode()
         {
-            SelectedDynamicProperties = new HashSet<string>();
             SelectedComplexesWithPath = new Dictionary<IEdmStructuralProperty, PathSelectItem>();
             ReferencedNavigationsWithPath = new Dictionary<IEdmNavigationProperty, ExpandedReferenceSelectItem>();
         }
@@ -43,7 +41,9 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
                 null : new Dictionary<IEdmNavigationProperty, ExpandedNavigationSelectItem>(selectExpandNodeToCopy.ExpandedProperties);
 
             SelectAllDynamicProperties = selectExpandNodeToCopy.SelectAllDynamicProperties;
-            SelectedDynamicProperties = new HashSet<string>(selectExpandNodeToCopy.SelectedDynamicProperties);
+
+            SelectedDynamicProperties = selectExpandNodeToCopy.SelectedDynamicProperties == null ?
+                null : new HashSet<string>(selectExpandNodeToCopy.SelectedDynamicProperties);
 
             SelectedActions = selectExpandNodeToCopy.SelectedActions == null ? null : new HashSet<IEdmAction>(selectExpandNodeToCopy.SelectedActions);
             SelectedFunctions = selectExpandNodeToCopy.SelectedFunctions == null ? null : new HashSet<IEdmFunction>(selectExpandNodeToCopy.SelectedFunctions);
@@ -98,18 +98,17 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
         }
 
         /// <summary>
-        /// Gets the list of EDM structural properties (primitive, enum or collection of them) to be included in the response.
-        /// It coulde be null if there's no property selected.
-        /// </summary>
-        public ISet<IEdmStructuralProperty> SelectedStructuralProperties { get; private set; }
-
-        /// <summary>
         /// Gets the list of EDM navigation properties to be expand referenced in the response. It will never be null.
         /// </summary>
         public ISet<IEdmNavigationProperty> ReferencedNavigationProperties
         {
             get
             {
+                if (ReferencedNavigationsWithPath == null)
+                {
+                    return null;
+                }
+
                 return new HashSet<IEdmNavigationProperty>(ReferencedNavigationsWithPath.Keys);
             }
         }
@@ -131,15 +130,39 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
         }
 
         /// <summary>
-        /// Gets the list of EDM navigation properties to be included as links in the response. It could be null.
-        /// </summary>
-        public ISet<IEdmNavigationProperty> SelectedNavigationProperties { get; private set; }
-
-        /// <summary>
         /// Gets the list of EDM navigation properties to be expanded in the response.
         /// </summary>
         [Obsolete("This property is deprecated in favor of ExpandedProperties as this property only contains a subset of the information.")]
-        public IDictionary<IEdmNavigationProperty, SelectExpandClause> ExpandedNavigationProperties { get; }
+        public IDictionary<IEdmNavigationProperty, SelectExpandClause> ExpandedNavigationProperties
+        {
+            get
+            {
+                if (ExpandedProperties == null)
+                {
+                    return null;
+                }
+
+                return ExpandedProperties.ToDictionary(e => e.Key, e => e.Value.SelectAndExpand);
+            }
+        }
+
+        /// <summary>
+        /// Gets the list of EDM structural properties (primitive, enum or collection of them) to be included in the response.
+        /// It coulde be null if there's no property selected.
+        /// </summary>
+        public ISet<IEdmStructuralProperty> SelectedStructuralProperties { get; private set; }
+
+        /// <summary>
+        /// Gets the list of Edm structural properties (complex or complex collection) to be included in the response.
+        /// The key is the Edm structural property.
+        /// The value is the potential sub select item.
+        /// </summary>
+        internal IDictionary<IEdmStructuralProperty, PathSelectItem> SelectedComplexesWithPath { get; private set; }
+
+        /// <summary>
+        /// Gets the list of EDM navigation properties to be included as links in the response. It could be null.
+        /// </summary>
+        public ISet<IEdmNavigationProperty> SelectedNavigationProperties { get; private set; }
 
         /// <summary>
         /// Gets the list of EDM navigation properties to be expanded in the response along with the nested query options embedded in the expand.
@@ -148,6 +171,12 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
         public IDictionary<IEdmNavigationProperty, ExpandedNavigationSelectItem> ExpandedProperties { get; private set; }
 
         /// <summary>
+        /// Gets the list of EDM navigation properties to be referenced in the response along with the nested query options embedded in the expand.
+        /// It could be null if no navigation property to reference.
+        /// </summary>
+        internal IDictionary<IEdmNavigationProperty, ExpandedReferenceSelectItem> ReferencedNavigationsWithPath { get; private set; }
+
+        /// <summary>s
         /// Gets the list of dynamic properties to select.
         /// </summary>
         public ISet<string> SelectedDynamicProperties { get; private set; }
@@ -166,18 +195,6 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
         /// Gets the list of OData functions to be included in the response. It could be null.
         /// </summary>
         public ISet<IEdmFunction> SelectedFunctions { get; private set; }
-
-        /// <summary>
-        /// Gets the list of Edm structural properties (complex or complex collection) to be included in the response.
-        /// The key is the Edm structural property.
-        /// The value is the potential sub select item.
-        /// </summary>
-        internal IDictionary<IEdmStructuralProperty, PathSelectItem> SelectedComplexesWithPath { get; private set; }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        internal IDictionary<IEdmNavigationProperty, ExpandedReferenceSelectItem> ReferencedNavigationsWithPath { get; private set; }
 
         /// <summary>
         /// Initialize the Node from <see cref="SelectExpandNode"/>.
@@ -259,7 +276,7 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
         /// <param name="allNavigationProperties">All navigation properties</param>
         /// <param name="allActions">All bound actions.</param>
         /// <param name="allFunctions">All bound functions.</param>
-        internal void BuildSelectExpand(SelectExpandClause selectExpandClause,
+        private void BuildSelectExpand(SelectExpandClause selectExpandClause,
             ISet<IEdmStructuralProperty> allStructuralProperties,
             ISet<IEdmNavigationProperty> allNavigationProperties,
             ISet<IEdmAction> allActions,
@@ -354,7 +371,7 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
         /// </summary>
         /// <param name="expandReferenceItem">The expanded reference select item.</param>
         /// <param name="currentLevelPropertiesInclude">The current properties to include at current level.</param>
-        internal void BuildExpandItem(ExpandedReferenceSelectItem expandReferenceItem, IDictionary<IEdmStructuralProperty, SelectExpandIncludeProperty> currentLevelPropertiesInclude)
+        private void BuildExpandItem(ExpandedReferenceSelectItem expandReferenceItem, IDictionary<IEdmStructuralProperty, SelectExpandIncludeProperty> currentLevelPropertiesInclude)
         {
             Contract.Assert(expandReferenceItem != null && expandReferenceItem.PathToNavigationProperty != null);
             Contract.Assert(currentLevelPropertiesInclude != null);
@@ -484,6 +501,11 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
             DynamicPathSegment dynamicPathSegment = segment as DynamicPathSegment;
             if (dynamicPathSegment != null)
             {
+                if (SelectedDynamicProperties == null)
+                {
+                    SelectedDynamicProperties = new HashSet<string>();
+                }
+
                 SelectedDynamicProperties.Add(dynamicPathSegment.Identifier);
             }
 
@@ -664,155 +686,6 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
             }
 
             return allStructuralProperties;
-        }
-    }
-
-
-    internal class IncludePropertySelectItem
-    {
-        public IncludePropertySelectItem(PropertySegment propertySegment)
-        {
-            PropertySegment = propertySegment;
-            SubSelectItems = new List<SelectItem>();
-        }
-
-        public IncludePropertySelectItem(PropertySegment propertySegment, IEdmNavigationSource navigationSource)
-        {
-            PropertySegment = propertySegment;
-            SubSelectItems = new List<SelectItem>();
-
-            NavigationSource = navigationSource;
-        }
-
-        public PropertySegment PropertySegment { get; }
-
-        public IEdmNavigationSource NavigationSource { get; set; }
-
-        public FilterClause FilterClause { get; set; }
-
-        public OrderByClause OrderByClause { get; set; }
-
-        public long? TopClause { get; set; }
-
-        public long? SkipClause { get; set; }
-
-        public bool? CountClause { get; set; }
-
-        public SearchClause SearchClause { get; set; }
-
-        public ComputeClause ComputeClause { get; set; }
-
-        public IList<SelectItem> SubSelectItems { get; set; }
-
-        public PathSelectItem ToPathSelectItem()
-        {
-            SelectExpandClause subSelectExpandClause;
-            if (SubSelectItems.Any())
-            {
-                bool IsSelectAll = true;
-                foreach (var item in SubSelectItems)
-                {
-                    // only include $expand=...., means selectAll as true
-                    if (!(item is ExpandedNavigationSelectItem || item is ExpandedReferenceSelectItem))
-                    {
-                        IsSelectAll = false;
-                        break;
-                    }
-                }
-
-                subSelectExpandClause = new SelectExpandClause(SubSelectItems, IsSelectAll);
-            }
-            else
-            {
-                subSelectExpandClause = null;
-            }
-
-            if (subSelectExpandClause == null && FilterClause == null &&
-                OrderByClause == null && TopClause == null && SkipClause == null && CountClause == null &&
-                SearchClause == null && ComputeClause == null)
-            {
-                return null;
-            }
-
-            return new PathSelectItem(new ODataSelectPath(PropertySegment), NavigationSource, subSelectExpandClause,
-                FilterClause, OrderByClause, TopClause, SkipClause, CountClause, SearchClause, ComputeClause);
-        }
-
-        public void AddSubSelectItem(IList<ODataPathSegment> remainingSegments, PathSelectItem oldSelectItem)
-        {
-            if (remainingSegments == null)
-            {
-                if (oldSelectItem.NavigationSource != null)
-                {
-                    NavigationSource = oldSelectItem.NavigationSource; // from ODL, it's null?
-                }
-
-                // In ODL v7.6.1, it's not allowed duplicated properties in $select.
-                // It's possibility to allow duplicated properties in $select.
-                // It that's the case, please update the codes here otherwise the latter will win.
-                FilterClause = oldSelectItem.FilterOption;
-                OrderByClause = oldSelectItem.OrderByOption;
-                TopClause = oldSelectItem.TopOption;
-                SkipClause = oldSelectItem.SkipOption;
-                CountClause = oldSelectItem.CountOption;
-                SearchClause = oldSelectItem.SearchOption;
-                ComputeClause = oldSelectItem.ComputeOption;
-
-                if (oldSelectItem.SelectAndExpand != null)
-                {
-                    foreach (var selectItem in oldSelectItem.SelectAndExpand.SelectedItems)
-                    {
-                        SubSelectItems.Add(selectItem);
-                    }
-                }
-
-                // Be noted: "$select=abc($top=2),abc($skip=2)" is not allowed in ODL library.
-                // So, don't worry about the previous setting overrided by other same path.
-            }
-            else
-            {
-                SubSelectItems.Add(new PathSelectItem(new ODataSelectPath(remainingSegments), oldSelectItem.NavigationSource,
-                    oldSelectItem.SelectAndExpand, oldSelectItem.FilterOption,
-                    oldSelectItem.OrderByOption, oldSelectItem.TopOption,
-                    oldSelectItem.SkipOption, oldSelectItem.CountOption,
-                    oldSelectItem.SearchOption, oldSelectItem.ComputeOption));
-            }
-        }
-
-        public void AddSubExpandItem(IList<ODataPathSegment> remainingSegments, ExpandedReferenceSelectItem oldRefItem)
-        {
-            // remainingSegments should never be null, because at least a navigation property segment in it.
-            Contract.Assert(remainingSegments != null);
-
-            ExpandedNavigationSelectItem expandedNav = oldRefItem as ExpandedNavigationSelectItem;
-            if (expandedNav != null)
-            {
-                SubSelectItems.Add(new ExpandedNavigationSelectItem(new ODataExpandPath(remainingSegments),
-                    expandedNav.NavigationSource,
-                    expandedNav.SelectAndExpand,
-                    expandedNav.FilterOption,
-                    expandedNav.OrderByOption,
-                    expandedNav.TopOption,
-                    expandedNav.SkipOption,
-                    expandedNav.CountOption,
-                    expandedNav.SearchOption,
-                    expandedNav.LevelsOption,
-                    expandedNav.ComputeOption,
-                    expandedNav.ApplyOption));
-            }
-            else
-            {
-                SubSelectItems.Add(new ExpandedReferenceSelectItem(new ODataExpandPath(remainingSegments),
-                    oldRefItem.NavigationSource,
-                    oldRefItem.FilterOption,
-                    oldRefItem.OrderByOption,
-                    oldRefItem.TopOption,
-                    oldRefItem.SkipOption,
-                    oldRefItem.CountOption,
-                    oldRefItem.SearchOption,
-                    oldRefItem.ComputeOption,
-                    oldRefItem.ApplyOption));
-            }
         }
     }
 }

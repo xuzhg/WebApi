@@ -258,28 +258,6 @@ namespace Microsoft.AspNet.OData.Test.Formatter.Serialization
                 "$select does not support selections of type 'SelectItemProxy'.");
         }
 
-        /*
-        [Fact]
-        public void ValidatePathIsSupported_ThrowsForUnsupportedPathForSelect()
-        {
-            ODataPath path = new ODataPath(new ValueSegment(previousType: null));
-
-            ExceptionAssert.Throws<ODataException>(
-                () => SelectExpandNode.ValidatePathIsSupportedForSelect(path),
-                "A path within the select or expand query option is not supported.");
-        }
-
-        [Fact]
-        public void ValidatePathIsSupported_ThrowsForUnsupportedPathForExpand()
-        {
-            ODataPath path = new ODataPath(new ValueSegment(previousType: null));
-
-            ExceptionAssert.Throws<ODataException>(
-                () => SelectExpandNode.ValidatePathIsSupportedForExpand(path),
-                "A path within the select or expand query option is not supported.");
-        }*/
-
-
         #region Test IsComplexOrCollectionComplex
         [Fact]
         public void IsComplexOrCollectionComplex_TestNullInputCorrect()

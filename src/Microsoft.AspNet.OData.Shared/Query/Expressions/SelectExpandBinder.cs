@@ -466,7 +466,7 @@ namespace Microsoft.AspNet.OData.Query.Expressions
 
             // Verify and process the $expand=... path.
             IList<ODataPathSegment> remainingSegments, leadingSegments;
-            ODataPathSegment firstPropertySegment = expandedItem.PathToNavigationProperty.ProcessExpandPath(out remainingSegments, out leadingSegments);
+            ODataPathSegment firstPropertySegment = expandedItem.PathToNavigationProperty.GetFirstNonTypeCastSegment(out remainingSegments, out leadingSegments);
 
             PropertySegment firstStructuralPropertySegment = firstPropertySegment as PropertySegment;
             if (firstStructuralPropertySegment != null)
@@ -523,7 +523,7 @@ namespace Microsoft.AspNet.OData.Query.Expressions
 
             // Verify and process the $select path
             IList<ODataPathSegment> remainingSegments, leadingSegments;
-            ODataPathSegment firstPropertySegment = pathSelectItem.SelectedPath.ProcessSelectPath(out remainingSegments, out leadingSegments);
+            ODataPathSegment firstPropertySegment = pathSelectItem.SelectedPath.GetFirstNonTypeCastSegment(out remainingSegments, out leadingSegments);
 
             PropertySegment firstSturucturalPropertySegment = firstPropertySegment as PropertySegment;
             if (firstSturucturalPropertySegment != null)

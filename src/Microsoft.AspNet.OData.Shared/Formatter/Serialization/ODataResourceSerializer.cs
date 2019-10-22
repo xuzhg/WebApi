@@ -516,7 +516,7 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
             Contract.Assert(resourceContext != null);
 
             if (!resourceContext.StructuredType.IsOpen || // non-open type
-                (!selectExpandNode.SelectAllDynamicProperties && !selectExpandNode.SelectedDynamicProperties.Any()))
+                (!selectExpandNode.SelectAllDynamicProperties && selectExpandNode.SelectedDynamicProperties == null))
             {
                 return;
             }
@@ -557,10 +557,8 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
             HashSet<string> declaredPropertyNameSet = new HashSet<string>(resource.Properties.Select(p => p.Name));
             List<ODataProperty> dynamicProperties = new List<ODataProperty>();
             IEnumerable<KeyValuePair<string, object>> dynamicPropertiesToSelect =
-                dynamicPropertyDictionary.Where(
-                    x =>
-                        !selectExpandNode.SelectedDynamicProperties.Any() ||
-                        selectExpandNode.SelectedDynamicProperties.Contains(x.Key));
+                dynamicPropertyDictionary.Where(x =>
+                selectExpandNode.SelectedDynamicProperties != null || selectExpandNode.SelectedDynamicProperties.Contains(x.Key));
             foreach (KeyValuePair<string, object> dynamicProperty in dynamicPropertiesToSelect)
             {
                 if (String.IsNullOrEmpty(dynamicProperty.Key))
