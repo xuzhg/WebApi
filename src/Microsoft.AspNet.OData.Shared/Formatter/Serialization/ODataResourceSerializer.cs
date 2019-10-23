@@ -958,11 +958,11 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
 
             if (selectExpandNode.SelectedStructuralProperties == null)
             {
-                return Enumerable.Empty<ODataProperty>();
+                return null;
             }
 
-            IEnumerable<IEdmStructuralProperty> structuralProperties = selectExpandNode.SelectedStructuralProperties;
             List<ODataProperty> properties = new List<ODataProperty>();
+            IEnumerable<IEdmStructuralProperty> structuralProperties = selectExpandNode.SelectedStructuralProperties;
 
             if (null != resourceContext.EdmObject && resourceContext.EdmObject.IsDeltaResource())
             {

@@ -752,5 +752,58 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
 
             return allStructuralProperties;
         }
+
+        /// <summary>
+        /// Separate the structural properties into two parts:
+        /// 1. Complex and collection of complex are nested structural properties.
+        /// 2. Others are non-nested structural properties.
+        /// </summary>
+        /// <param name="structuredType">The structural type of the resource.</param>
+        /// <param name="structuralProperties">The non-nested structural properties of the structural type.</param>
+        /// <param name="nestedStructuralProperties">The nested structural properties of the structural type.</param>
+        public static void GetStructuralProperties(IEdmStructuredType structuredType, HashSet<IEdmStructuralProperty> structuralProperties,
+            HashSet<IEdmStructuralProperty> nestedStructuralProperties)
+        {
+            // Be noted: this method is not used anymore. Keep it unremoved for non-breaking changes.
+            // If any new requirement for such method, it's better to move to "EdmLibHelpers" class.
+
+            if (structuredType == null)
+            {
+                throw Error.ArgumentNull("structuredType");
+            }
+
+            if (structuralProperties == null)
+            {
+                throw Error.ArgumentNull("structuralProperties");
+            }
+
+            if (nestedStructuralProperties == null)
+            {
+                throw Error.ArgumentNull("nestedStructuralProperties");
+            }
+
+            foreach (var edmStructuralProperty in structuredType.StructuralProperties())
+            {
+                if (edmStructuralProperty.Type.IsComplex())
+                {
+                    nestedStructuralProperties.Add(edmStructuralProperty);
+                }
+                else if (edmStructuralProperty.Type.IsCollection())
+                {
+                    if (edmStructuralProperty.Type.AsCollection().ElementType().IsComplex())
+                    {
+                        nestedStructuralProperties.Add(edmStructuralProperty);
+                    }
+                    else
+                    {
+                        structuralProperties.Add(edmStructuralProperty);
+                    }
+                }
+                else
+                {
+                    structuralProperties.Add(edmStructuralProperty);
+                }
+            }
+        }
     }
 }
