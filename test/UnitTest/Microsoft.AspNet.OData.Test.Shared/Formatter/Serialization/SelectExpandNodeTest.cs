@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Microsoft.AspNet.OData.Formatter.Serialization;
 using Microsoft.AspNet.OData.Test.Common;
+using Microsoft.Extensions.DependencyModel;
 using Microsoft.OData;
 using Microsoft.OData.Edm;
 using Microsoft.OData.UriParser;
@@ -70,7 +71,7 @@ namespace Microsoft.AspNet.OData.Test.Formatter.Serialization
         [InlineData(null, "Orders", true, "City,ID,Name,SimpleEnum,SpecialCustomerProperty", "Account,Address,OtherAccounts,SpecialAddress")] // simple expand on derived type -> select all
         [InlineData("ID,Name,Orders", "Orders", false, "ID,Name", null)] // expand and select -> select requested
         [InlineData("ID,Name,Orders", "Orders", true, "ID,Name", null)] // expand and select on derived type -> select requested
-        [InlineData("NS.SpecialCustomer/SpecialCustomerProperty", null, false, null, null)] // select derived type properties -> select none
+        [InlineData("NS.SpecialCustomer/SpecialCustomerProperty", null, false, "SpecialCustomerProperty", null)] // select derived type properties -> select none
         [InlineData("NS.SpecialCustomer/SpecialCustomerProperty", null, true, "SpecialCustomerProperty", null)] // select derived type properties on derived type -> select requested
         [InlineData("ID", "Orders($select=ID),Orders($expand=Customer($select=ID))", true, "ID", null)] // deep expand and selects
         public void SelectProperties_SelectsExpectedProperties_OnCustomer(
@@ -111,22 +112,312 @@ namespace Microsoft.AspNet.OData.Test.Formatter.Serialization
         [InlineData("ID,Name,Orders", "Orders($select=ID)", true, "ID")] // expand and select properties on expand on derived type -> select requested
         [InlineData("Orders", "Orders,Orders($expand=Customer)", false, "Amount,City,ID")]
         [InlineData("Orders", "Orders,Orders($expand=Customer)", true, "Amount,City,ID,SpecialOrderProperty")]
-        public void GetPropertiesToBeSelected_Selects_ExpectedProperties_OnExpandedOrders(
-            string select, string expand, bool specialOrder, string structuralPropertiesToSelect)
+        public void SelectProperties_Selects_ExpectedProperties_OnExpandedOrders(string select, string expand, bool specialOrder, string structuralPropertiesToSelect)
         {
             // Arrange
             SelectExpandClause selectExpandClause = ParseSelectExpand(select, expand);
-
             SelectExpandClause nestedSelectExpandClause = selectExpandClause.SelectedItems.OfType<ExpandedNavigationSelectItem>().Single().SelectAndExpand;
-
             IEdmStructuredType structuralType = specialOrder ? _model.SpecialOrder : _model.Order;
 
             // Act
             SelectExpandNode selectExpandNode = new SelectExpandNode(nestedSelectExpandClause, structuralType, _model.Model);
-            var result = selectExpandNode.SelectedStructuralProperties;
 
             // Assert
-            Assert.Equal(structuralPropertiesToSelect, String.Join(",", result.Select(p => p.Name).OrderBy(n => n)));
+            Assert.Equal(structuralPropertiesToSelect, String.Join(",", selectExpandNode.SelectedStructuralProperties.Select(p => p.Name).OrderBy(n => n)));
+        }
+
+        [Theory]
+        [InlineData("Address/Street,Address/City,Address/ZipCode", "Address", "Street,City,ZipCode")]
+        [InlineData("Address($select=Street,City,ZipCode)", "Address", "Street,City,ZipCode")]
+        [InlineData("OtherAccounts/Bank,OtherAccounts/CardNum", "OtherAccounts", "Bank,CardNum")]
+        [InlineData("OtherAccounts($select=Bank,CardNum)", "OtherAccounts", "Bank,CardNum")]
+        public void SelectProperties_OnSubPrimitivePropertyFromComplex_SelectsExpectedProperties(string select, string firstSelected, string secondSelected)
+        {
+            // Arrange
+            SelectExpandClause selectExpandClause = ParseSelectExpand(select, null);
+
+            // Act: Top Level
+            SelectExpandNode selectExpandNode = new SelectExpandNode(selectExpandClause, _model.Customer, _model.Model);
+
+            // Assert
+            Assert.NotNull(selectExpandNode.SelectedComplexesWithPath);
+            var firstLevelSelected = Assert.Single(selectExpandNode.SelectedComplexesWithPath);
+            Assert.Equal(firstSelected, firstLevelSelected.Key.Name);
+
+            Assert.NotNull(firstLevelSelected.Value);
+            Assert.NotNull(firstLevelSelected.Value.SelectAndExpand);
+
+            // Act: Sub Level
+            SelectExpandNode subSelectExpandNode = new SelectExpandNode(firstLevelSelected.Value.SelectAndExpand, _model.Address, _model.Model);
+            Assert.Null(subSelectExpandNode.SelectedComplexesWithPath);
+
+            // Assert
+            Assert.NotNull(subSelectExpandNode.SelectedStructuralProperties);
+            var selectedProperties = secondSelected.Split(',');
+            Assert.Equal(selectedProperties.Length, subSelectExpandNode.SelectedStructuralProperties.Count);
+            Assert.Equal(secondSelected, String.Join(",", subSelectExpandNode.SelectedStructuralProperties.Select(s => s.Name)));
+        }
+
+        [Theory]
+        [InlineData("Account/BankAddress/Street,Account/BankAddress/City,Account/BankAddress/ZipCode")]
+        [InlineData("Account/BankAddress($select=Street,City,ZipCode)")]
+        public void SelectProperties_OnMultipleLevelsPropertyFromComplex_SelectsExpectedProperties(string select)
+        {
+            // Arrange
+            SelectExpandClause selectExpandClause = ParseSelectExpand(select, null);
+
+            // Act: First Level
+            SelectExpandNode selectExpandNode = new SelectExpandNode(selectExpandClause, _model.Customer, _model.Model);
+
+            // Assert
+            Assert.Null(selectExpandNode.SelectedStructuralProperties);
+            Assert.NotNull(selectExpandNode.SelectedComplexesWithPath);
+            var firstLevelSelected = Assert.Single(selectExpandNode.SelectedComplexesWithPath);
+            Assert.Equal("Account", firstLevelSelected.Key.Name);
+            Assert.NotNull(firstLevelSelected.Value);
+            Assert.NotNull(firstLevelSelected.Value.SelectAndExpand);
+
+            // Act: Second Level
+            SelectExpandNode secondSelectExpandNode = new SelectExpandNode(firstLevelSelected.Value.SelectAndExpand, _model.Account, _model.Model);
+
+            // Assert
+            Assert.Null(secondSelectExpandNode.SelectedStructuralProperties);
+            Assert.NotNull(secondSelectExpandNode.SelectedComplexesWithPath);
+            var secondLevelSelected = Assert.Single(secondSelectExpandNode.SelectedComplexesWithPath);
+            Assert.Equal("BankAddress", secondLevelSelected.Key.Name);
+            Assert.NotNull(secondLevelSelected.Value);
+            Assert.NotNull(secondLevelSelected.Value.SelectAndExpand);
+
+            // Act: Third Level
+            SelectExpandNode thirdSelectExpandNode = new SelectExpandNode(secondLevelSelected.Value.SelectAndExpand, _model.Address, _model.Model);
+
+            // Assert
+            Assert.Null(thirdSelectExpandNode.SelectedComplexesWithPath);
+            Assert.NotNull(thirdSelectExpandNode.SelectedStructuralProperties);
+            Assert.Equal(3, thirdSelectExpandNode.SelectedStructuralProperties.Count);
+            Assert.Equal(new[] { "Street", "City", "ZipCode" }, thirdSelectExpandNode.SelectedStructuralProperties.Select(s => s.Name));
+        }
+
+        [Theory]
+        [InlineData("Account/DynamicProperty", "Account")]
+        [InlineData("Account($select=DynamicProperty)", "Account")]
+        [InlineData("OtherAccounts/DynamicProperty", "OtherAccounts")]
+        [InlineData("OtherAccounts($select=DynamicProperty)", "OtherAccounts")]
+        public void SelectProperties_OnSubDynamicFromComplex_SelectsExpectedProperties(string select, string firstSelected)
+        {
+            // Arrange
+            SelectExpandClause selectExpandClause = ParseSelectExpand(select, null);
+
+            // Act
+            SelectExpandNode selectExpandNode = new SelectExpandNode(selectExpandClause, _model.Customer, _model.Model);
+
+            // Assert: Top Level
+            Assert.False(selectExpandNode.SelectAllDynamicProperties);
+            Assert.Null(selectExpandNode.SelectedDynamicProperties);
+            Assert.Null(selectExpandNode.SelectedStructuralProperties);
+            Assert.Null(selectExpandNode.SelectedNavigationProperties);
+            Assert.NotNull(selectExpandNode.SelectedComplexesWithPath);
+            var firstLevelSelected = Assert.Single(selectExpandNode.SelectedComplexesWithPath);
+            Assert.Equal(firstSelected, firstLevelSelected.Key.Name);
+
+            Assert.NotNull(firstLevelSelected.Value);
+            Assert.NotNull(firstLevelSelected.Value.SelectAndExpand);
+
+            // Assert: Second Level
+            SelectExpandNode subSelectExpandNode = new SelectExpandNode(firstLevelSelected.Value.SelectAndExpand, _model.Address, _model.Model);
+            Assert.Null(subSelectExpandNode.SelectedComplexesWithPath);
+            Assert.Null(subSelectExpandNode.SelectedStructuralProperties);
+            Assert.Null(subSelectExpandNode.SelectedNavigationProperties);
+            Assert.False(subSelectExpandNode.SelectAllDynamicProperties);
+            Assert.NotNull(subSelectExpandNode.SelectedDynamicProperties);
+            Assert.Equal("DynamicProperty", Assert.Single(subSelectExpandNode.SelectedDynamicProperties));
+        }
+
+        [Theory]
+        [InlineData("Account/AccountOrderNav", "Account")]
+        [InlineData("Account($select=AccountOrderNav)", "Account")]
+        [InlineData("OtherAccounts/AccountOrderNav", "OtherAccounts")]
+        [InlineData("OtherAccounts($select=AccountOrderNav)", "OtherAccounts")]
+        public void SelectProperties_OnSubNavigationPropertyFromComplex_SelectsExpectedProperties(string select, string firstSelected)
+        {
+            // Arrange
+            _model.Account.AddUnidirectionalNavigation(new EdmNavigationPropertyInfo
+            {
+                Name = "AccountOrderNav",
+                TargetMultiplicity = EdmMultiplicity.One,
+                Target = _model.Order
+            });
+
+            SelectExpandClause selectExpandClause = ParseSelectExpand(select, null);
+
+            // Act
+            SelectExpandNode selectExpandNode = new SelectExpandNode(selectExpandClause, _model.Customer, _model.Model);
+
+            // Assert: Top Level
+            Assert.Null(selectExpandNode.SelectedStructuralProperties);
+            Assert.Null(selectExpandNode.SelectedNavigationProperties);
+            Assert.NotNull(selectExpandNode.SelectedComplexesWithPath);
+            var firstLevelSelected = Assert.Single(selectExpandNode.SelectedComplexesWithPath);
+            Assert.Equal(firstSelected, firstLevelSelected.Key.Name);
+
+            Assert.NotNull(firstLevelSelected.Value);
+            Assert.NotNull(firstLevelSelected.Value.SelectAndExpand);
+
+            // Assert: Second Level
+            SelectExpandNode subSelectExpandNode = new SelectExpandNode(firstLevelSelected.Value.SelectAndExpand, _model.Address, _model.Model);
+            Assert.Null(subSelectExpandNode.SelectedComplexesWithPath);
+            Assert.Null(subSelectExpandNode.SelectedStructuralProperties);
+            Assert.NotNull(subSelectExpandNode.SelectedNavigationProperties);
+            Assert.Equal("AccountOrderNav", Assert.Single(subSelectExpandNode.SelectedNavigationProperties).Name);
+        }
+
+        [Fact]
+        public void SelectProperties_OnMultipleSubPropertiesFromComplex_SelectsExpectedProperties()
+        {
+            // Arrange
+            string select = "Account,Account/Bank,Account/BankAddress/Street";
+
+            SelectExpandClause selectExpandClause = ParseSelectExpand(select, null);
+
+            // Act
+            SelectExpandNode selectExpandNode = new SelectExpandNode(selectExpandClause, _model.Customer, _model.Model);
+
+            // Assert: Top Level
+            Assert.Null(selectExpandNode.SelectedStructuralProperties);
+            Assert.Null(selectExpandNode.SelectedNavigationProperties);
+            Assert.NotNull(selectExpandNode.SelectedComplexesWithPath);
+            var firstLevelSelected = Assert.Single(selectExpandNode.SelectedComplexesWithPath);
+            Assert.Equal("Account", firstLevelSelected.Key.Name);
+
+            Assert.NotNull(firstLevelSelected.Value);
+            Assert.NotNull(firstLevelSelected.Value.SelectAndExpand);
+            Assert.True(firstLevelSelected.Value.SelectAndExpand.AllSelected);
+
+            // Assert: Second Level
+            SelectExpandNode secondSelectExpandNode = new SelectExpandNode(firstLevelSelected.Value.SelectAndExpand, _model.Account, _model.Model);
+            Assert.NotNull(secondSelectExpandNode.SelectedStructuralProperties);
+            Assert.Equal(2, secondSelectExpandNode.SelectedStructuralProperties.Count); // Because it's select all from first select item.
+            Assert.Equal(new[] { "Bank", "CardNum" }, secondSelectExpandNode.SelectedStructuralProperties.Select(s => s.Name));
+
+            Assert.Null(secondSelectExpandNode.SelectedNavigationProperties);
+
+            Assert.NotNull(secondSelectExpandNode.SelectedComplexesWithPath);
+            var secondLevelSelected = Assert.Single(secondSelectExpandNode.SelectedComplexesWithPath);
+            Assert.Equal("BankAddress", secondLevelSelected.Key.Name);
+            Assert.NotNull(secondLevelSelected.Value);
+            Assert.NotNull(secondLevelSelected.Value.SelectAndExpand);
+            Assert.False(secondLevelSelected.Value.SelectAndExpand.AllSelected);
+
+            // Assert: Third level
+            SelectExpandNode thirdSelectExpandNode = new SelectExpandNode(secondLevelSelected.Value.SelectAndExpand, _model.Address, _model.Model);
+            Assert.NotNull(thirdSelectExpandNode.SelectedStructuralProperties);
+            Assert.Equal("Street", Assert.Single(thirdSelectExpandNode.SelectedStructuralProperties).Name);
+            Assert.Null(thirdSelectExpandNode.SelectedNavigationProperties);
+            Assert.Null(thirdSelectExpandNode.SelectedComplexesWithPath);
+        }
+
+        [Theory]
+        [InlineData("$select=Account/Bank&$expand=Account/AccountOrderNav", "Account")]
+        [InlineData("$select=Account($select=Bank)&$expand=Account/AccountOrderNav", "Account")]
+        [InlineData("$select=OtherAccounts/Bank&$expand=OtherAccounts/AccountOrderNav", "OtherAccounts")]
+        [InlineData("$select=OtherAccounts($select=Bank)&$expand=OtherAccounts/AccountOrderNav", "OtherAccounts")]
+        public void SelectProperties_OnSubSelectAndExpandFromComplex_SelectsExpectedProperties(string selectExpand, string firstSelected)
+        {
+            // Arrange
+            string[] items = selectExpand.Split('&');
+            Assert.Equal(2, items.Length);
+
+            string select = items[0].Substring(8);
+            string expand = items[1].Substring(8);
+
+            _model.Account.AddUnidirectionalNavigation(new EdmNavigationPropertyInfo
+            {
+                Name = "AccountOrderNav",
+                TargetMultiplicity = EdmMultiplicity.One,
+                Target = _model.Order
+            });
+
+            SelectExpandClause selectExpandClause = ParseSelectExpand(select, expand);
+
+            // Act
+            SelectExpandNode selectExpandNode = new SelectExpandNode(selectExpandClause, _model.Customer, _model.Model);
+
+            // Assert: Top Level
+            Assert.Null(selectExpandNode.SelectedStructuralProperties);
+            Assert.Null(selectExpandNode.SelectedNavigationProperties);
+            Assert.Null(selectExpandNode.ExpandedProperties); // Not expanded at first level
+
+            Assert.NotNull(selectExpandNode.SelectedComplexesWithPath);
+            var firstLevelSelected = Assert.Single(selectExpandNode.SelectedComplexesWithPath);
+            Assert.Equal(firstSelected, firstLevelSelected.Key.Name);
+
+            Assert.NotNull(firstLevelSelected.Value);
+            Assert.NotNull(firstLevelSelected.Value.SelectAndExpand);
+
+            // Assert: Second Level
+            SelectExpandNode subSelectExpandNode = new SelectExpandNode(firstLevelSelected.Value.SelectAndExpand, _model.Account, _model.Model);
+            Assert.Null(subSelectExpandNode.SelectedComplexesWithPath);
+            Assert.NotNull(subSelectExpandNode.SelectedStructuralProperties);
+            Assert.Equal("Bank", Assert.Single(subSelectExpandNode.SelectedStructuralProperties).Name);
+
+            Assert.NotNull(subSelectExpandNode.ExpandedProperties);
+            var expandedProperty = Assert.Single(subSelectExpandNode.ExpandedProperties);
+            Assert.Equal("AccountOrderNav", expandedProperty.Key.Name);
+
+            Assert.NotNull(expandedProperty.Value);
+            Assert.NotNull(expandedProperty.Value.SelectAndExpand);
+            Assert.True(expandedProperty.Value.SelectAndExpand.AllSelected);
+            Assert.Empty(expandedProperty.Value.SelectAndExpand.SelectedItems);
+        }
+
+        [Fact]
+        public void SelectProperties_OnSubPropertyWithTypeCastFromComplex_SelectsExpectedProperties()
+        {
+            // Arrange
+            EdmComplexType subComplexType = new EdmComplexType("NS", "CnAddress", _model.Address);
+            subComplexType.AddStructuralProperty("SubAddressProperty", EdmPrimitiveTypeKind.String);
+            subComplexType.AddUnidirectionalNavigation(new EdmNavigationPropertyInfo
+            {
+                Name = "CnAddressOrderNav",
+                TargetMultiplicity = EdmMultiplicity.One,
+                Target = _model.Order
+            });
+            _model.Model.AddElement(subComplexType);
+
+            string select = "Address/NS.CnAddress/SubAddressProperty";
+            string expand = "Address/NS.CnAddress/CnAddressOrderNav";
+
+            SelectExpandClause selectExpandClause = ParseSelectExpand(select, expand);
+
+            // Act
+            SelectExpandNode selectExpandNode = new SelectExpandNode(selectExpandClause, _model.Customer, _model.Model);
+
+            // Assert: Top Level
+            Assert.Null(selectExpandNode.SelectedStructuralProperties);
+            Assert.Null(selectExpandNode.SelectedNavigationProperties);
+            Assert.Null(selectExpandNode.ExpandedProperties); // Not expanded at first level
+
+            Assert.NotNull(selectExpandNode.SelectedComplexesWithPath);
+            var firstLevelSelected = Assert.Single(selectExpandNode.SelectedComplexesWithPath);
+            Assert.Equal("Address", firstLevelSelected.Key.Name);
+
+            Assert.NotNull(firstLevelSelected.Value);
+            Assert.NotNull(firstLevelSelected.Value.SelectAndExpand);
+
+            // Assert: Second Level
+            SelectExpandNode subSelectExpandNode = new SelectExpandNode(firstLevelSelected.Value.SelectAndExpand, _model.Address, _model.Model);
+            Assert.Null(subSelectExpandNode.SelectedComplexesWithPath);
+            Assert.NotNull(subSelectExpandNode.SelectedStructuralProperties);
+            Assert.Equal("SubAddressProperty", Assert.Single(subSelectExpandNode.SelectedStructuralProperties).Name);
+
+            Assert.NotNull(subSelectExpandNode.ExpandedProperties);
+            var expandedProperty = Assert.Single(subSelectExpandNode.ExpandedProperties);
+            Assert.Equal("CnAddressOrderNav", expandedProperty.Key.Name);
+
+            Assert.NotNull(expandedProperty.Value);
+            Assert.NotNull(expandedProperty.Value.SelectAndExpand);
+            Assert.True(expandedProperty.Value.SelectAndExpand.AllSelected);
+            Assert.Empty(expandedProperty.Value.SelectAndExpand.SelectedItems);
         }
 
         [Theory]
@@ -152,7 +443,6 @@ namespace Microsoft.AspNet.OData.Test.Formatter.Serialization
 
             // Act
             SelectExpandNode selectExpandNode = new SelectExpandNode(selectExpandClause, structuralType, _model.Model);
-            var result = selectExpandNode.SelectedNavigationProperties;
 
             // Assert
             if (propertiesToSelect == null)
@@ -316,15 +606,58 @@ namespace Microsoft.AspNet.OData.Test.Formatter.Serialization
         #endregion
 
         #region Test GetAllProperties
-        [Fact]
-        public void GetAllProperties_ReturnsCorrectProperties()
+        [Theory]
+        [InlineData("Customer", 7, 1, 1, 8)]
+        [InlineData("SpecialCustomer", 9, 2, 2, 10)]
+        [InlineData("Order", 3, 1, 0, 0)]
+        [InlineData("Address", 5, 0, 0, 0)]
+        public void GetAllProperties_ReturnsCorrectProperties(string typeName, int structurals, int navigations, int actions, int functions)
         {
             // Assert
+            ISet<IEdmStructuralProperty> allStructuralProperties;
+            ISet<IEdmNavigationProperty> allNavigationProperties;
+            ISet<IEdmAction> allActions;
+            ISet<IEdmFunction> allFunctions;
+            IEdmStructuredType structuralType = _model.Model.SchemaElements.OfType<IEdmSchemaType>().FirstOrDefault(c => c.Name == typeName) as IEdmStructuredType;
+            Assert.NotNull(structuralType); // Guard
 
             // Act
-           // SelectExpandNode.GetAllProperties(_model.Model, _model.Customer, out allNavigationProperties,
-           //     out allActions, out allFunctions);
+            allStructuralProperties = SelectExpandNode.GetAllProperties(_model.Model, structuralType, out allNavigationProperties,
+                out allActions, out allFunctions);
+
             // Assert
+            Assert.NotNull(allStructuralProperties);
+            Assert.Equal(structurals, allStructuralProperties.Count);
+
+            if (navigations == 0)
+            {
+                Assert.Null(allNavigationProperties);
+            }
+            else
+            {
+                Assert.NotNull(allNavigationProperties);
+                Assert.Equal(navigations, allNavigationProperties.Count);
+            }
+
+            if (actions == 0)
+            {
+                Assert.Null(allActions);
+            }
+            else
+            {
+                Assert.NotNull(allActions);
+                Assert.Equal(actions, allActions.Count);
+            }
+
+            if (functions == 0)
+            {
+                Assert.Null(allFunctions);
+            }
+            else
+            {
+                Assert.NotNull(allFunctions);
+                Assert.Equal(functions, allFunctions.Count);
+            }
         }
         #endregion
 

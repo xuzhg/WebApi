@@ -558,7 +558,7 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
             List<ODataProperty> dynamicProperties = new List<ODataProperty>();
             IEnumerable<KeyValuePair<string, object>> dynamicPropertiesToSelect =
                 dynamicPropertyDictionary.Where(x =>
-                selectExpandNode.SelectedDynamicProperties != null || selectExpandNode.SelectedDynamicProperties.Contains(x.Key));
+                selectExpandNode.SelectedDynamicProperties == null || selectExpandNode.SelectedDynamicProperties.Contains(x.Key));
             foreach (KeyValuePair<string, object> dynamicProperty in dynamicPropertiesToSelect)
             {
                 if (String.IsNullOrEmpty(dynamicProperty.Key))
@@ -808,7 +808,10 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
             Contract.Assert(writer != null);
 
             var referencedPropertiesToExpand = selectExpandNode.ReferencedNavigationsWithPath;
-            Contract.Assert(referencedPropertiesToExpand != null);
+            if (referencedPropertiesToExpand == null)
+            {
+                return;
+            }
 
             foreach (var referenced in referencedPropertiesToExpand)
             {
@@ -825,9 +828,7 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
             }
         }
 
-        private void WriteComplexAndExpandedNavigationProperty(IEdmProperty edmProperty, SelectItem selectItem,
-            ResourceContext resourceContext,
-            ODataWriter writer)
+        private void WriteComplexAndExpandedNavigationProperty(IEdmProperty edmProperty, SelectItem selectItem, ResourceContext resourceContext, ODataWriter writer)
         {
             Contract.Assert(edmProperty != null);
             Contract.Assert(resourceContext != null);
@@ -897,6 +898,11 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
         /// <returns>The navigation link to be written.</returns>
         public virtual ODataNestedResourceInfo CreateNavigationLink(IEdmNavigationProperty navigationProperty, ResourceContext resourceContext)
         {
+            if (resourceContext == null)
+            {
+                throw Error.ArgumentNull("resourceContext");
+            }
+
             return CreateNavigationLink(navigationProperty, resourceContext, resourceContext.NavigationSource);
         }
 
@@ -914,6 +920,7 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
             {
                 throw Error.ArgumentNull("navigationProperty");
             }
+
             if (resourceContext == null)
             {
                 throw Error.ArgumentNull("resourceContext");

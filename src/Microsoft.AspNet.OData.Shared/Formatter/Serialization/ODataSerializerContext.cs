@@ -54,9 +54,8 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
         /// If the resource property is the dynamic complex, the resource property is null.
         /// </param>
         /// <param name="queryContext">The <see cref="ODataQueryContext"/> for the navigation property being expanded.</param>
-        /// <param name="currentSelectItem">The <see cref="ExpandedReferenceSelectItem"/> for the navigation property being expanded.></param>
+        /// <param name="currentSelectItem">The <see cref="SelectItem"/> for the navigation property being expanded.></param>
         internal ODataSerializerContext(ResourceContext resource, IEdmProperty edmProperty, ODataQueryContext queryContext, SelectItem currentSelectItem)
-            //ExpandedReferenceSelectItem expandedItem, SelectExpandClause subSelectExpandClause = null)
         {
             if (resource == null)
             {
@@ -107,6 +106,19 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
             }
 
             EdmProperty = edmProperty; // should be nested property
+
+            if (currentSelectItem == null)
+            {
+                IEdmNavigationProperty navigationProperty = edmProperty as IEdmNavigationProperty;
+                if (navigationProperty != null && context.NavigationSource != null)
+                {
+                    NavigationSource = context.NavigationSource.FindNavigationTarget(NavigationProperty);
+                }
+                else
+                {
+                    NavigationSource = resource.NavigationSource;
+                }
+            }
         }
 
         internal IWebApiRequestMessage InternalRequest { get; private set; }
