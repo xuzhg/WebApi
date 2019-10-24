@@ -15,13 +15,22 @@ namespace Microsoft.AspNet.OData.Test.Formatter.Serialization.Models
         }
 
         public int ID { get; set; }
+
         public string Name { get; set; }
+
         public string FirstName { get; set; }
+
         public string LastName { get; set; }
+
         public string City { get; set; }
+
         public IList<Order> Orders { get; set; }
+
         public SimpleEnum SimpleEnum { get; set; }
+
         public Address HomeAddress { get; set; }
+
+        public IList<Address> Addresses { get; set; }
     }
 
     public class SpecialCustomer : Customer
