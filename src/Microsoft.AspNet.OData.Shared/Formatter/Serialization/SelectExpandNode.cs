@@ -171,6 +171,9 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
         /// </summary>
         public ISet<IEdmFunction> SelectedFunctions { get; internal set; }
 
+        private IEdmStructuredType _edmStructuredType;
+        private IEdmModel _edmModel;
+
         /// <summary>
         /// Initialize the Node from <see cref="SelectExpandNode"/>.
         /// </summary>
@@ -189,6 +192,9 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
             {
                 throw Error.ArgumentNull("model");
             }
+
+            _edmStructuredType = structuredType;
+            _edmModel = model;
 
             IEdmEntityType entityType = structuredType as IEdmEntityType;
             if (expandedReference)
@@ -333,7 +339,7 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
         /// </summary>
         /// <param name="expandReferenceItem">The expanded reference select item.</param>
         /// <param name="currentLevelPropertiesInclude">The current properties to include at current level.</param>
-        private void BuildExpandItem(ExpandedReferenceSelectItem expandReferenceItem,
+        private void BuildExpandItem22(ExpandedReferenceSelectItem expandReferenceItem,
             IDictionary<IEdmStructuralProperty, SelectExpandIncludeProperty> currentLevelPropertiesInclude)
         {
             Contract.Assert(expandReferenceItem != null && expandReferenceItem.PathToNavigationProperty != null);
@@ -395,6 +401,100 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
                     }
 
                     ReferencedProperties[firstNavigationSegment.NavigationProperty] = expandReferenceItem;
+                }
+            }
+        }
+
+        private IEdmStructuredType GetStructuredType(IList<ODataPathSegment> leadingSegments)
+        {
+            if (leadingSegments == null || leadingSegments.Count == 0)
+            {
+                return _edmStructuredType;
+            }
+
+            // the leadingSegments includes the typeSegment.
+            TypeSegment typeSegment = leadingSegments.Last() as TypeSegment;
+            if (typeSegment == null)
+            {
+                return _edmStructuredType;
+            }
+
+            return typeSegment.EdmType as IEdmStructuredType;
+        }
+
+        /// <summary>
+        /// Build the $expand item, it maybe $expand=complex/nav, $expand=nav, $expand=nav/$ref, etc.
+        /// </summary>
+        /// <param name="expandReferenceItem">The expanded reference select item.</param>
+        /// <param name="currentLevelPropertiesInclude">The current properties to include at current level.</param>
+        private void BuildExpandItem(ExpandedReferenceSelectItem expandReferenceItem,
+            IDictionary<IEdmStructuralProperty, SelectExpandIncludeProperty> currentLevelPropertiesInclude)
+        {
+            Contract.Assert(expandReferenceItem != null && expandReferenceItem.PathToNavigationProperty != null);
+            Contract.Assert(currentLevelPropertiesInclude != null);
+
+            // Verify and process the $expand=abc/xyz/nav.
+            ODataExpandPath expandPath = expandReferenceItem.PathToNavigationProperty;
+            IList<ODataPathSegment> remainingSegments, leadingSegments;
+            ODataPathSegment segment = expandPath.GetFirstNonTypeCastSegment(out remainingSegments, out leadingSegments);
+
+            IEdmStructuredType relatedStructuralType = GetStructuredType(leadingSegments);
+            EdmStructuralTypeInfo edmStructuralTypeInfo = GetStructuralTypeInfo(_edmModel, relatedStructuralType);
+
+            PropertySegment firstPropertySegment = segment as PropertySegment;
+            if (firstPropertySegment != null && edmStructuralTypeInfo.IsPropertyDefined(firstPropertySegment.Property))
+            {
+                // for example: $expand=abc/xyz/nav, the remaining segment can't be null because at least the last navigation
+                // property segment is there.
+                Contract.Assert(remainingSegments != null);
+
+                SelectExpandIncludeProperty newPropertySelectItem;
+                if (!currentLevelPropertiesInclude.TryGetValue(firstPropertySegment.Property, out newPropertySelectItem))
+                {
+                    newPropertySelectItem = new SelectExpandIncludeProperty(firstPropertySegment, null, leadingSegments);
+                    currentLevelPropertiesInclude[firstPropertySegment.Property] = newPropertySelectItem;
+                }
+                else
+                {
+                    Contract.Assert(newPropertySelectItem != null);
+                    newPropertySelectItem.VerifyTheLeadingSegments(leadingSegments);
+                }
+
+                newPropertySelectItem.AddSubExpandItem(remainingSegments, expandReferenceItem);
+            }
+            else
+            {
+                // for example: $expand=nav, the navigation property segment should be the last segment.
+                // So, the remaining segments should be null.
+                Contract.Assert(remainingSegments == null);
+
+                NavigationPropertySegment firstNavigationSegment = segment as NavigationPropertySegment;
+                Contract.Assert(firstNavigationSegment != null);
+
+                if (edmStructuralTypeInfo.IsPropertyDefined(firstNavigationSegment.NavigationProperty))
+                {
+                    // It's not allowed to have mulitple navigation expanded or referenced.
+                    // for example: "$expand=nav($top=2),nav($skip=3)" is not allowed and will be merged (or throw exception) at ODL side.
+                    ExpandedNavigationSelectItem expanded = expandReferenceItem as ExpandedNavigationSelectItem;
+                    if (expanded != null)
+                    {
+                        if (ExpandedProperties == null)
+                        {
+                            ExpandedProperties = new Dictionary<IEdmNavigationProperty, ExpandedNavigationSelectItem>();
+                        }
+
+                        ExpandedProperties[firstNavigationSegment.NavigationProperty] = expanded;
+                    }
+                    else
+                    {
+                        // $expand=..../nav/$ref
+                        if (ReferencedProperties == null)
+                        {
+                            ReferencedProperties = new Dictionary<IEdmNavigationProperty, ExpandedReferenceSelectItem>();
+                        }
+
+                        ReferencedProperties[firstNavigationSegment.NavigationProperty] = expandReferenceItem;
+                    }
                 }
             }
         }
@@ -637,6 +737,118 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
             {
                 SelectedNavigationProperties = null;
             }
+        }
+
+        private class EdmStructuralTypeInfo
+        {
+            private ISet<IEdmStructuralProperty> _allStructuralProperties { get; set; }
+
+            private ISet<IEdmNavigationProperty> _allNavigationProperties { get; set; }
+
+            private ISet<IEdmAction> _allActions { get; set; }
+
+            private ISet<IEdmFunction> _allFunctions { get; set; }
+
+            public EdmStructuralTypeInfo(IEdmModel model, IEdmStructuredType structuredType)
+            {
+                if (model == null)
+                {
+                    throw Error.ArgumentNull("model");
+                }
+
+                if (structuredType == null)
+                {
+                    throw Error.ArgumentNull("structuredType");
+                }
+
+                foreach (var edmProperty in structuredType.Properties())
+                {
+                    switch (edmProperty.PropertyKind)
+                    {
+                        case EdmPropertyKind.Structural:
+                            if (_allStructuralProperties == null)
+                            {
+                                _allStructuralProperties = new HashSet<IEdmStructuralProperty>();
+                            }
+
+                            _allStructuralProperties.Add((IEdmStructuralProperty)edmProperty);
+                            break;
+
+                        case EdmPropertyKind.Navigation:
+                            if (_allNavigationProperties == null)
+                            {
+                                _allNavigationProperties = new HashSet<IEdmNavigationProperty>();
+                            }
+
+                            _allNavigationProperties.Add((IEdmNavigationProperty)edmProperty);
+                            break;
+                    }
+                }
+
+                IEdmEntityType entityType = structuredType as IEdmEntityType;
+                if (entityType != null)
+                {
+                    var actions = model.GetAvailableActions(entityType);
+                    _allActions = actions.Any() ? new HashSet<IEdmAction>(actions) : null;
+
+                    var functions = model.GetAvailableFunctions(entityType);
+                    _allFunctions = functions.Any() ? new HashSet<IEdmFunction>(functions) : null;
+                }
+            }
+
+            public bool IsPropertyDefined(IEdmProperty property)
+            {
+                if (_allStructuralProperties != null && _allStructuralProperties.Contains(property))
+                {
+                    return true;
+                }
+
+                if (_allNavigationProperties != null && _allNavigationProperties.Contains(property))
+                {
+                    return true;
+                }
+
+                return false;
+            }
+
+            public bool IsOperationBounded(IEdmOperation operation)
+            {
+                if (operation == null)
+                {
+                    return false;
+                }
+
+                if (operation.IsAction() && _allActions != null && _allActions.Contains(operation))
+                {
+                    return true;
+                }
+
+                if (operation.IsAction() && _allFunctions != null && _allFunctions.Contains(operation))
+                {
+                    return true;
+                }
+
+                return false;
+            }
+        }
+
+        private IDictionary<IEdmStructuredType, EdmStructuralTypeInfo> _structuralTypeInfo;
+
+        private EdmStructuralTypeInfo GetStructuralTypeInfo(IEdmModel model, IEdmStructuredType structuredType)
+        {
+            if (_structuralTypeInfo == null)
+            {
+                _structuralTypeInfo = new Dictionary<IEdmStructuredType, EdmStructuralTypeInfo>();
+            }
+
+            EdmStructuralTypeInfo info;
+            if (!_structuralTypeInfo.TryGetValue(structuredType, out info))
+            {
+                info = new EdmStructuralTypeInfo(model, structuredType);
+                _structuralTypeInfo[structuredType] = info;
+            }
+
+            return info;
         }
 
         /// <summary>

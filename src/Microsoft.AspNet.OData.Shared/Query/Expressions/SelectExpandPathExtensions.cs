@@ -134,6 +134,15 @@ namespace Microsoft.AspNet.OData.Query.Expressions
                 }
             }
 
+            // Typically, a path like:  "~/NS.BaseType/NS.SubType1/NS.SubType2/PropertyOnSubType2" is valid,
+            // However, it's same as "~/NS.SubType2/PropertyOnSubType2", so, we only care about the last segment
+            // if we have the leading segments, and the last segment must be the type segment and it's verified.
+            TypeSegment leadingTypeSegment;
+            if (leadingSegments != null)
+            {
+                leadingTypeSegment = leadingSegments.LastOrDefault() as TypeSegment;
+            }
+
             return firstNonTypeSegment;
         }
     }
