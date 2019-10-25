@@ -71,14 +71,14 @@ namespace Microsoft.AspNet.OData.Test.Query.Expressions
 
             // Act
             IList<ODataPathSegment> remainingSegments;
-            IList<ODataPathSegment> leadingSegments;
-            ODataPathSegment firstNonTypeSegment = selectPath.GetFirstNonTypeCastSegment(out remainingSegments, out leadingSegments);
+            TypeSegment leadingSegment;
+            ODataPathSegment firstNonTypeSegment = selectPath.GetFirstNonTypeCastSegment(out remainingSegments, out leadingSegment);
 
             // Assert
             Assert.NotNull(firstNonTypeSegment);
             Assert.Same(firstPropertySegment, firstNonTypeSegment);
 
-            Assert.Null(leadingSegments);
+            Assert.Null(leadingSegment);
 
             Assert.NotNull(remainingSegments);
             Assert.Same(secondPropertySegment, Assert.Single(remainingSegments));
@@ -103,17 +103,15 @@ namespace Microsoft.AspNet.OData.Test.Query.Expressions
 
             // Act
             IList<ODataPathSegment> remainingSegments;
-            IList<ODataPathSegment> leadingSegments;
-            ODataPathSegment firstNonTypeSegment = selectPath.GetFirstNonTypeCastSegment(out remainingSegments, out leadingSegments);
+            TypeSegment leadingSegment;
+            ODataPathSegment firstNonTypeSegment = selectPath.GetFirstNonTypeCastSegment(out remainingSegments, out leadingSegment);
 
             // Assert
             Assert.NotNull(firstNonTypeSegment);
             Assert.Same(firstPropertySegment, firstNonTypeSegment);
 
-            Assert.NotNull(leadingSegments);
-            Assert.Equal(2, leadingSegments.Count);
-            Assert.Same(firstTypeSegment, leadingSegments[0]);
-            Assert.Same(secondTypeSegment, leadingSegments[1]);
+            Assert.NotNull(leadingSegment);
+            Assert.Same(secondTypeSegment, leadingSegment);
 
             Assert.NotNull(remainingSegments);
             Assert.Same(secondPropertySegment, Assert.Single(remainingSegments));
@@ -136,17 +134,15 @@ namespace Microsoft.AspNet.OData.Test.Query.Expressions
 
             // Act
             IList<ODataPathSegment> remainingSegments;
-            IList<ODataPathSegment> leadingSegments;
-            ODataPathSegment firstNonTypeSegment = selectPath.GetFirstNonTypeCastSegment(out remainingSegments, out leadingSegments);
+            TypeSegment leadingSegment;
+            ODataPathSegment firstNonTypeSegment = selectPath.GetFirstNonTypeCastSegment(out remainingSegments, out leadingSegment);
 
             // Assert
             Assert.NotNull(firstNonTypeSegment);
             Assert.Same(firstPropertySegment, firstNonTypeSegment);
 
-            Assert.NotNull(leadingSegments);
-            Assert.Equal(2, leadingSegments.Count);
-            Assert.Same(firstTypeSegment, leadingSegments[0]);
-            Assert.Same(secondTypeSegment, leadingSegments[1]);
+            Assert.NotNull(leadingSegment);
+            Assert.Same(secondTypeSegment, leadingSegment);
 
             Assert.Null(remainingSegments);
         }
@@ -170,15 +166,15 @@ namespace Microsoft.AspNet.OData.Test.Query.Expressions
 
             // Act
             IList<ODataPathSegment> remainingSegments;
-            IList<ODataPathSegment> leadingSegments;
-            ODataPathSegment firstNonTypeSegment = expandPath.GetFirstNonTypeCastSegment(out remainingSegments, out leadingSegments);
+            TypeSegment leadingTypeSegment;
+            ODataPathSegment firstNonTypeSegment = expandPath.GetFirstNonTypeCastSegment(out remainingSegments, out leadingTypeSegment);
 
             // Assert
             Assert.NotNull(firstNonTypeSegment);
             Assert.Same(navSegment, firstNonTypeSegment);
 
-            Assert.NotNull(leadingSegments);
-            Assert.Same(typeSegment, Assert.Single(leadingSegments));
+            Assert.NotNull(leadingTypeSegment);
+            Assert.Same(typeSegment, leadingTypeSegment);
 
             Assert.Null(remainingSegments);
         }
@@ -204,15 +200,15 @@ namespace Microsoft.AspNet.OData.Test.Query.Expressions
 
             // Act
             IList<ODataPathSegment> remainingSegments;
-            IList<ODataPathSegment> leadingSegments;
-            ODataPathSegment firstNonTypeSegment = expandPath.GetFirstNonTypeCastSegment(out remainingSegments, out leadingSegments);
+            TypeSegment leadingSegment;
+            ODataPathSegment firstNonTypeSegment = expandPath.GetFirstNonTypeCastSegment(out remainingSegments, out leadingSegment);
 
             // Assert
             Assert.NotNull(firstNonTypeSegment);
             Assert.Same(propertySegment, firstNonTypeSegment);
 
-            Assert.NotNull(leadingSegments);
-            Assert.Same(typeSegment, Assert.Single(leadingSegments));
+            Assert.NotNull(leadingSegment);
+            Assert.Same(typeSegment, leadingSegment);
 
             Assert.NotNull(remainingSegments);
             Assert.Same(navSegment, Assert.Single(remainingSegments));

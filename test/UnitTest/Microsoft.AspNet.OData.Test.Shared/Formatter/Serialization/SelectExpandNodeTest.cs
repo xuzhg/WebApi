@@ -126,9 +126,9 @@ namespace Microsoft.AspNet.OData.Test.Formatter.Serialization
         }
 
         [Theory]
-        [InlineData("Address/Street,Address/City,Address/ZipCode", "Address", "Street,City,ZipCode")]
+        [InlineData("Address/Street,Address/City,Address/ZipCode", "Address", "Street,City,ZipCode")] // complex
         [InlineData("Address($select=Street,City,ZipCode)", "Address", "Street,City,ZipCode")]
-        [InlineData("OtherAccounts/Bank,OtherAccounts/CardNum", "OtherAccounts", "Bank,CardNum")]
+        [InlineData("OtherAccounts/Bank,OtherAccounts/CardNum", "OtherAccounts", "Bank,CardNum")] // Collection complex
         [InlineData("OtherAccounts($select=Bank,CardNum)", "OtherAccounts", "Bank,CardNum")]
         public void SelectProperties_OnSubPrimitivePropertyFromComplex_SelectsExpectedProperties(string select, string firstSelected, string secondSelected)
         {
@@ -147,7 +147,8 @@ namespace Microsoft.AspNet.OData.Test.Formatter.Serialization
             Assert.NotNull(firstLevelSelected.Value.SelectAndExpand);
 
             // Act: Sub Level
-            SelectExpandNode subSelectExpandNode = new SelectExpandNode(firstLevelSelected.Value.SelectAndExpand, _model.Account, _model.Model);
+            IEdmStructuredType subLevelElementType = firstLevelSelected.Key.Type.ToStructuredType();
+            SelectExpandNode subSelectExpandNode = new SelectExpandNode(firstLevelSelected.Value.SelectAndExpand, subLevelElementType, _model.Model);
             Assert.Null(subSelectExpandNode.SelectedComplexes);
 
             // Assert
@@ -223,7 +224,7 @@ namespace Microsoft.AspNet.OData.Test.Formatter.Serialization
             Assert.NotNull(firstLevelSelected.Value.SelectAndExpand);
 
             // Assert: Second Level
-            SelectExpandNode subSelectExpandNode = new SelectExpandNode(firstLevelSelected.Value.SelectAndExpand, _model.Address, _model.Model);
+            SelectExpandNode subSelectExpandNode = new SelectExpandNode(firstLevelSelected.Value.SelectAndExpand, _model.Account, _model.Model);
             Assert.Null(subSelectExpandNode.SelectedComplexes);
             Assert.Null(subSelectExpandNode.SelectedStructuralProperties);
             Assert.Null(subSelectExpandNode.SelectedNavigationProperties);
@@ -263,7 +264,7 @@ namespace Microsoft.AspNet.OData.Test.Formatter.Serialization
             Assert.NotNull(firstLevelSelected.Value.SelectAndExpand);
 
             // Assert: Second Level
-            SelectExpandNode subSelectExpandNode = new SelectExpandNode(firstLevelSelected.Value.SelectAndExpand, _model.Address, _model.Model);
+            SelectExpandNode subSelectExpandNode = new SelectExpandNode(firstLevelSelected.Value.SelectAndExpand, _model.Account, _model.Model);
             Assert.Null(subSelectExpandNode.SelectedComplexes);
             Assert.Null(subSelectExpandNode.SelectedStructuralProperties);
             Assert.NotNull(subSelectExpandNode.SelectedNavigationProperties);
@@ -499,11 +500,11 @@ namespace Microsoft.AspNet.OData.Test.Formatter.Serialization
         [InlineData("NS.*", true, 2, 10)]
         [InlineData("NS.upgrade", false, 1, null)] // select single action -> select requested action
         [InlineData("NS.upgrade", true, 1, null)]
-        [InlineData("NS.SpecialCustomer/NS.specialUpgrade", false, null, null)] // select single derived action on base type -> select nothing
+        [InlineData("NS.SpecialCustomer/NS.specialUpgrade", false, 1, null)] // select single derived action on base type -> select nothing
         [InlineData("NS.SpecialCustomer/NS.specialUpgrade", true, 1, null)] // select single derived action on derived type  -> select requested action
         [InlineData("NS.GetSalary", false, null, 1)] // select single function -> select requested function
         [InlineData("NS.GetSalary", true, null, 1)]
-        [InlineData("NS.SpecialCustomer/NS.IsSpecialUpgraded", false, null, null)] // select single derived function on base type -> select nothing
+        [InlineData("NS.SpecialCustomer/NS.IsSpecialUpgraded", false, null, 1)] // select single derived function on base type -> select nothing
         [InlineData("NS.SpecialCustomer/NS.IsSpecialUpgraded", true, null, 1)] // select single derived function on derived type  -> select requested function
         public void OperationsToBeSelected_Selects_ExpectedOperations(string select, bool specialCustomer, int? actionsSelected, int? functionsSelected)
         {

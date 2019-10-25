@@ -465,10 +465,10 @@ namespace Microsoft.AspNet.OData.Query.Expressions
             Contract.Assert(currentLevelPropertiesInclude != null);
 
             // Verify and process the $expand=... path.
-            IList<ODataPathSegment> remainingSegments, leadingSegments;
-            ODataPathSegment firstPropertySegment = expandedItem.PathToNavigationProperty.GetFirstNonTypeCastSegment(out remainingSegments, out leadingSegments);
+            IList<ODataPathSegment> remainingSegments;
+            ODataPathSegment firstNonTypeSegment = expandedItem.PathToNavigationProperty.GetFirstNonTypeCastSegment(out remainingSegments, out _);
 
-            PropertySegment firstStructuralPropertySegment = firstPropertySegment as PropertySegment;
+            PropertySegment firstStructuralPropertySegment = firstNonTypeSegment as PropertySegment;
             if (firstStructuralPropertySegment != null)
             {
                 // for example: $expand=abc/nav, the remaining segments should never be null because at least the last navigation segment is there.
@@ -477,12 +477,8 @@ namespace Microsoft.AspNet.OData.Query.Expressions
                 SelectExpandIncludeProperty newPropertySelectItem;
                 if (!currentLevelPropertiesInclude.TryGetValue(firstStructuralPropertySegment.Property, out newPropertySelectItem))
                 {
-                    newPropertySelectItem = new SelectExpandIncludeProperty(firstStructuralPropertySegment, navigationSource, leadingSegments);
+                    newPropertySelectItem = new SelectExpandIncludeProperty(firstStructuralPropertySegment, navigationSource);
                     currentLevelPropertiesInclude[firstStructuralPropertySegment.Property] = newPropertySelectItem;
-                }
-                else
-                {
-                    newPropertySelectItem.VerifyTheLeadingSegments(leadingSegments);
                 }
 
                 newPropertySelectItem.AddSubExpandItem(remainingSegments, expandedItem);
@@ -493,7 +489,7 @@ namespace Microsoft.AspNet.OData.Query.Expressions
                 // So, the remaing segments should be null and the last segment should be "NavigationPropertySegment".
                 Contract.Assert(remainingSegments == null);
 
-                NavigationPropertySegment firstNavigationPropertySegment = firstPropertySegment as NavigationPropertySegment;
+                NavigationPropertySegment firstNavigationPropertySegment = firstNonTypeSegment as NavigationPropertySegment;
                 Contract.Assert(firstNavigationPropertySegment != null);
 
                 // Needn't add this navigation property into the include property.
@@ -522,10 +518,10 @@ namespace Microsoft.AspNet.OData.Query.Expressions
             Contract.Assert(currentLevelPropertiesInclude != null);
 
             // Verify and process the $select path
-            IList<ODataPathSegment> remainingSegments, leadingSegments;
-            ODataPathSegment firstPropertySegment = pathSelectItem.SelectedPath.GetFirstNonTypeCastSegment(out remainingSegments, out leadingSegments);
+            IList<ODataPathSegment> remainingSegments;
+            ODataPathSegment firstNonTypeSegment = pathSelectItem.SelectedPath.GetFirstNonTypeCastSegment(out remainingSegments, out _);
 
-            PropertySegment firstSturucturalPropertySegment = firstPropertySegment as PropertySegment;
+            PropertySegment firstSturucturalPropertySegment = firstNonTypeSegment as PropertySegment;
             if (firstSturucturalPropertySegment != null)
             {
                 // $select=abc/..../xyz
@@ -534,10 +530,6 @@ namespace Microsoft.AspNet.OData.Query.Expressions
                 {
                     newPropertySelectItem = new SelectExpandIncludeProperty(firstSturucturalPropertySegment, navigationSource);
                     currentLevelPropertiesInclude[firstSturucturalPropertySegment.Property] = newPropertySelectItem;
-                }
-                else
-                {
-                    newPropertySelectItem.VerifyTheLeadingSegments(leadingSegments);
                 }
 
                 newPropertySelectItem.AddSubSelectItem(remainingSegments, pathSelectItem);
@@ -552,8 +544,7 @@ namespace Microsoft.AspNet.OData.Query.Expressions
                 // For navigation property, needn't process it here.
 
                 // For dynamic property, let's test the last segment for this path select item.
-                // It's safe to test the last segment because we can't find a property before that.
-                if (pathSelectItem.SelectedPath.LastSegment is DynamicPathSegment)
+                if (firstNonTypeSegment is DynamicPathSegment)
                 {
                     return true;
                 }

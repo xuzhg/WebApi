@@ -18,15 +18,15 @@ namespace Microsoft.AspNet.OData.Query.Expressions
         /// For example: $select=NS.SubType1/abc/NS.SubType2/xyz
         /// => firstPropertySegment: "abc"
         /// => remainingSegments:  NS.SubType2/xyz
-        /// => leadingSegmengs: NS.SubType1
+        /// => leadingTypeSegment: NS.SubType1
         /// </summary>
         /// <param name="selectPath">The input $select path.</param>
         /// <param name="remainingSegments">The remaining segments after the first non type segment.</param>
-        /// <param name="leadingSegments">The leading segments before the first non type segment.</param>
+        /// <param name="leadingTypeSegment">The leading type segment before the first non type segment.</param>
         /// <returns>First non-type cast segment.</returns>
         public static ODataPathSegment GetFirstNonTypeCastSegment(this ODataSelectPath selectPath,
             out IList<ODataPathSegment> remainingSegments,
-            out IList<ODataPathSegment> leadingSegments)
+            out TypeSegment leadingTypeSegment)
         {
             if (selectPath == null)
             {
@@ -40,7 +40,7 @@ namespace Microsoft.AspNet.OData.Query.Expressions
                 // The last segment could be "NavigationPropertySegment, PropertySegment, OperationSegment, DynamicPathSegment"
                 s => s is NavigationPropertySegment || s is PropertySegment || s is OperationSegment || s is DynamicPathSegment,
                 out remainingSegments,
-                out leadingSegments);
+                out leadingTypeSegment);
         }
 
         /// <summary>
@@ -48,15 +48,15 @@ namespace Microsoft.AspNet.OData.Query.Expressions
         /// For example: $expand=NS.SubType1/abc/NS.SubType2/nav
         /// => firstPropertySegment: "abc"
         /// => remainingSegments:  NS.SubType2/nav
-        /// => leadingSegmengs: NS.SubType1
+        /// => leadingTypeSegment: NS.SubType1
         /// </summary>
         /// <param name="expandPath">The input $expand path.</param>
         /// <param name="remainingSegments">The remaining segments after the first non type segment.</param>
-        /// <param name="leadingSegments">The leading segments before the first non type segment.</param>
+        /// <param name="leadingTypeSegment">The leading type segment before the first non type segment.</param>
         /// <returns>First non-type cast segment.</returns>
         public static ODataPathSegment GetFirstNonTypeCastSegment(this ODataExpandPath expandPath,
             out IList<ODataPathSegment> remainingSegments,
-            out IList<ODataPathSegment> leadingSegments)
+            out TypeSegment leadingTypeSegment)
         {
             if (expandPath == null)
             {
@@ -70,21 +70,20 @@ namespace Microsoft.AspNet.OData.Query.Expressions
                 // The last segment could be "NavigationPropertySegment"
                 s => s is NavigationPropertySegment,
                 out remainingSegments,
-                out leadingSegments);
+                out leadingTypeSegment);
         }
 
         private static ODataPathSegment GetFirstNonTypeCastSegment(ODataPath path,
             Func<ODataPathSegment, bool> middleSegmentPredict,
             Func<ODataPathSegment, bool> lastSegmentPredict,
             out IList<ODataPathSegment> remainingSegments, // could be null
-            out IList<ODataPathSegment> leadingSegments) // could be null
+            out TypeSegment leadingTypeSegment) // could be null
         {
             Contract.Assert(path != null);
 
             remainingSegments = null;
-            leadingSegments = null;
+            leadingTypeSegment = null;
             ODataPathSegment firstNonTypeSegment = null;
-
             int lastIndex = path.Count() - 1;
             int index = 0;
             foreach (var segment in path)
@@ -119,28 +118,19 @@ namespace Microsoft.AspNet.OData.Query.Expressions
                     continue;
                 }
 
+                // Typically, a path like:  "~/NS.BaseType/NS.SubType1/NS.SubType2/PropertyOnSubType2" is not-allowed ( but valid? )
+                // However, that path is same as "~/NS.SubType2/PropertyOnSubType2",
+                // so, Let's only care about the last segment in the leading segments.
+                // if we have the leading segments, and the last segment must be the type segment and it's verified.
                 if (segment is TypeSegment)
                 {
-                    if (leadingSegments == null)
-                    {
-                        leadingSegments = new List<ODataPathSegment>();
-                    }
-
-                    leadingSegments.Add(segment);
+                    // It's by design to override the previous TypeSegment, and allways keep the last type segment before the NonTypeSegment.
+                    leadingTypeSegment = (TypeSegment)segment;
                 }
                 else
                 {
                     firstNonTypeSegment = segment;
                 }
-            }
-
-            // Typically, a path like:  "~/NS.BaseType/NS.SubType1/NS.SubType2/PropertyOnSubType2" is valid,
-            // However, it's same as "~/NS.SubType2/PropertyOnSubType2", so, we only care about the last segment
-            // if we have the leading segments, and the last segment must be the type segment and it's verified.
-            TypeSegment leadingTypeSegment;
-            if (leadingSegments != null)
-            {
-                leadingTypeSegment = leadingSegments.LastOrDefault() as TypeSegment;
             }
 
             return firstNonTypeSegment;
