@@ -211,26 +211,25 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
 
                 allStructuralProperties = GetAllProperties(model, structuredType, out allNavigationProperties, out allActions, out allFunctions);*/
 
-                EdmStructuralTypeInfoCache structuralTypeInfoCache = new EdmStructuralTypeInfoCache(model);
+                EdmStructuralTypeInfo structuralTypeInfo = new EdmStructuralTypeInfo(model, structuredType);
 
                 if (selectExpandClause == null)
                 {
                     SelectAllDynamicProperties = true;
 
-                    ISet<IEdmNavigationProperty> allNavigationProperties; // includes all navigation properties
-                    ISet<IEdmAction> allActions; // includes all bound actions
-                    ISet<IEdmFunction> allFunctions; // includes all bound functions
-                    ISet<IEdmStructuralProperty> allStructuralProperties; // includes primitive, enum, complex or collection of them
+                    // includes primitive, enum, complex or collection of them
+                    SelectedNavigationProperties = structuralTypeInfo.AllNavigationProperties;
 
-                    allStructuralProperties = structuralTypeInfoCache.GetAllPropertiesInfo(structuredType, out allNavigationProperties, out allActions, out allFunctions);
+                    // includes all bound actions
+                    SelectedActions = structuralTypeInfo.AllActions;
 
-                    SelectedNavigationProperties = allNavigationProperties;
-                    SelectedActions = allActions;
-                    SelectedFunctions = allFunctions;
+                    // includes all bound functions
+                    SelectedFunctions = structuralTypeInfo.AllFunctions;
 
-                    if (allStructuralProperties != null)
+                    // includes all structural properties
+                    if (structuralTypeInfo.AllStructuralProperties != null)
                     {
-                        foreach (var property in allStructuralProperties)
+                        foreach (var property in structuralTypeInfo.AllStructuralProperties)
                         {
                             AddStructuralProperty(property, null);
                         }
@@ -238,7 +237,7 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
                 }
                 else
                 {
-                    BuildSelectExpand(structuredType, selectExpandClause, structuralTypeInfoCache);
+                    BuildSelectExpand(selectExpandClause, structuralTypeInfo);
                 }
 
                 AdjustSelectNavigationProperties();
@@ -248,12 +247,9 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
         /// <summary>
         /// Build $select and $expand clause
         /// </summary>
-        /// <param name="structuralType">The select expand clause</param>
         /// <param name="selectExpandClause">The select expand clause</param>
-        /// <param name="structuralTypeInfoCache">All structural properties (primitive, enum, complex or collection of them).</param>
-        private void BuildSelectExpand(IEdmStructuredType structuralType,
-            SelectExpandClause selectExpandClause,
-            EdmStructuralTypeInfoCache structuralTypeInfoCache)
+        /// <param name="structuralTypeInfo">All structural properties (primitive, enum, complex or collection of them).</param>
+        private void BuildSelectExpand(SelectExpandClause selectExpandClause, EdmStructuralTypeInfo structuralTypeInfo)
         {
             Contract.Assert(selectExpandClause != null);
 
@@ -268,7 +264,7 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
                 ExpandedReferenceSelectItem expandReferenceItem = selectItem as ExpandedReferenceSelectItem;
                 if (expandReferenceItem != null)
                 {
-                    BuildExpandItem(structuralType, expandReferenceItem, currentLevelPropertiesInclude, structuralTypeInfoCache);
+                    BuildExpandItem(expandReferenceItem, currentLevelPropertiesInclude, structuralTypeInfo);
                     continue;
                 }
 
@@ -276,7 +272,7 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
                 if (pathSelectItem != null)
                 {
                     // $select=abc/.../xyz
-                    BuildSelectItem(structuralType, pathSelectItem, currentLevelPropertiesInclude, structuralTypeInfoCache);
+                    BuildSelectItem(pathSelectItem, currentLevelPropertiesInclude, structuralTypeInfo);
                     continue;
                 }
 
@@ -333,14 +329,12 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
         /// <summary>
         /// Build the $expand item, it maybe $expand=complex/nav, $expand=nav, $expand=nav/$ref, etc.
         /// </summary>
-        /// <param name="structuralType">The expanded reference select item.</param>
         /// <param name="expandReferenceItem">The expanded reference select item.</param>
         /// <param name="currentLevelPropertiesInclude">The current properties to include at current level.</param>
-        /// <param name="structuralTypeInfoCache">The current properties to include at current level.</param>
-        private void BuildExpandItem(IEdmStructuredType structuralType,
-            ExpandedReferenceSelectItem expandReferenceItem,
+        /// <param name="structuralTypeInfo">The current properties to include at current level.</param>
+        private void BuildExpandItem(ExpandedReferenceSelectItem expandReferenceItem,
             IDictionary<IEdmStructuralProperty, SelectExpandIncludeProperty> currentLevelPropertiesInclude,
-            EdmStructuralTypeInfoCache structuralTypeInfoCache)
+            EdmStructuralTypeInfo structuralTypeInfo)
         {
             Contract.Assert(expandReferenceItem != null && expandReferenceItem.PathToNavigationProperty != null);
             Contract.Assert(currentLevelPropertiesInclude != null);
@@ -413,14 +407,12 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
         /// <summary>
         /// Build the $select item, it maybe $select=complex/abc, $select=abc, $select=nav, etc.
         /// </summary>
-        /// <param name="structuralType">The current level structural type.</param>
         /// <param name="pathSelectItem">The expanded reference select item.</param>
         /// <param name="currentLevelPropertiesInclude">The current properties to include at current level.</param>
-        /// <param name="structuralTypeInfoCache">The all structural properties.</param>
-        private void BuildSelectItem(IEdmStructuredType structuralType,
-            PathSelectItem pathSelectItem,
+        /// <param name="structuralTypeInfo">The all structural properties.</param>
+        private void BuildSelectItem(PathSelectItem pathSelectItem,
             IDictionary<IEdmStructuralProperty, SelectExpandIncludeProperty> currentLevelPropertiesInclude,
-            EdmStructuralTypeInfoCache structuralTypeInfoCache)
+            EdmStructuralTypeInfo structuralTypeInfo)
         {
             Contract.Assert(pathSelectItem != null && pathSelectItem.SelectedPath != null);
             Contract.Assert(currentLevelPropertiesInclude != null);
@@ -816,85 +808,74 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
         /// A internal cache class used to provide the propert, operation
         /// and do verification on the given <see cref="IEdmStructuredType"/>.
         /// </summary>
-        private class EdmStructuralTypeInfoCache
+        private class EdmStructuralTypeInfo
         {
-            /// <summary>
-            /// The cached Edm model.
-            /// </summary>
-            private IEdmModel _edmModel;
+            public ISet<IEdmStructuralProperty> AllStructuralProperties { get; }
+
+            public ISet<IEdmNavigationProperty> AllNavigationProperties { get; }
+
+            public ISet<IEdmAction> AllActions { get; }
+
+            public ISet<IEdmFunction> AllFunctions { get; }
 
             /// <summary>
-            /// The mapping between the Edm structural type and the type info.
-            /// </summary>
-            private IDictionary<IEdmStructuredType, EdmStructuralTypeInfo> _structuralTypeInfos;
-
-            /// <summary>
-            /// Creates a new instance of the <see cref="EdmStructuralTypeInfoCache"/> class
+            /// Creates a new instance of the <see cref="EdmStructuralTypeInfo"/> class
             /// </summary>
             /// <param name="model">The Edm model.</param>
-            public EdmStructuralTypeInfoCache(IEdmModel model)
+            /// <param name="structuredType">The Edm structured Type.</param>
+            public EdmStructuralTypeInfo(IEdmModel model, IEdmStructuredType structuredType)
             {
                 Contract.Assert(model != null);
-                _edmModel = model;
+                Contract.Assert(structuredType != null);
+
+                foreach (var edmProperty in structuredType.Properties())
+                {
+                    switch (edmProperty.PropertyKind)
+                    {
+                        case EdmPropertyKind.Structural:
+                            if (AllStructuralProperties == null)
+                            {
+                                AllStructuralProperties = new HashSet<IEdmStructuralProperty>();
+                            }
+
+                            AllStructuralProperties.Add((IEdmStructuralProperty)edmProperty);
+                            break;
+
+                        case EdmPropertyKind.Navigation:
+                            if (AllNavigationProperties == null)
+                            {
+                                AllNavigationProperties = new HashSet<IEdmNavigationProperty>();
+                            }
+
+                            AllNavigationProperties.Add((IEdmNavigationProperty)edmProperty);
+                            break;
+                    }
+                }
+
+                IEdmEntityType entityType = structuredType as IEdmEntityType;
+                if (entityType != null)
+                {
+                    var actions = model.GetAvailableActions(entityType);
+                    AllActions = actions.Any() ? new HashSet<IEdmAction>(actions) : null;
+
+                    var functions = model.GetAvailableFunctions(entityType);
+                    AllFunctions = functions.Any() ? new HashSet<IEdmFunction>(functions) : null;
+                }
             }
 
-            public ISet<IEdmStructuralProperty> GetAllPropertiesInfo(IEdmStructuredType edmStructuredType,
-                out ISet<IEdmNavigationProperty> allNavigationProperties,
-                out ISet<IEdmAction> allActions,
-                out ISet<IEdmFunction> allFunctions)
-            {
-                EdmStructuralTypeInfo typeInfo = GetStructuralTypeInfo(edmStructuredType);
-                Contract.Assert(typeInfo != null);
-
-                allNavigationProperties = typeInfo.AllNavigationProperties;
-                allActions = typeInfo.AllActions;
-                allFunctions = typeInfo.AllFunctions;
-                return typeInfo.AllStructuralProperties;
-            }
-
-            public ISet<IEdmStructuralProperty> GetAllStructuralProperties(IEdmStructuredType edmStructuredType)
-            {
-                EdmStructuralTypeInfo typeInfo = GetStructuralTypeInfo(edmStructuredType);
-                Contract.Assert(typeInfo != null);
-
-                return typeInfo.AllStructuralProperties;
-            }
-
-            public ISet<IEdmNavigationProperty> GetAllNavigationProperties(IEdmStructuredType edmStructuredType)
-            {
-                EdmStructuralTypeInfo typeInfo = GetStructuralTypeInfo(edmStructuredType);
-                Contract.Assert(typeInfo != null);
-
-                return typeInfo.AllNavigationProperties;
-            }
-
-            public ISet<IEdmAction> GetAllActions(IEdmStructuredType edmStructuredType)
-            {
-                EdmStructuralTypeInfo typeInfo = GetStructuralTypeInfo(edmStructuredType);
-                Contract.Assert(typeInfo != null);
-
-                return typeInfo.AllActions;
-            }
-
-            public ISet<IEdmFunction> GetAllFunctions(IEdmStructuredType edmStructuredType)
-            {
-                EdmStructuralTypeInfo typeInfo = GetStructuralTypeInfo(edmStructuredType);
-                Contract.Assert(typeInfo != null);
-
-                return typeInfo.AllFunctions;
-            }
-
-            public bool IsStructuralPropertyDefined(IEdmStructuredType structuredType, IEdmProperty property)
+            /// <summary>
+            /// Tests a <see cref="IEdmProperty"/> is defined on this type.
+            /// </summary>
+            /// <param name="property">The test Edm property.</param>
+            /// <returns>True/false</returns>
+            public bool IsStructuralPropertyDefined(IEdmProperty property)
             {
                 if (property == null)
                 {
                     return false;
                 }
 
-                EdmStructuralTypeInfo typeInfo = GetStructuralTypeInfo(structuredType);
-                Contract.Assert(typeInfo != null);
-
-                if (typeInfo.AllStructuralProperties != null && typeInfo.AllStructuralProperties.Contains(property))
+                if (AllStructuralProperties != null && AllStructuralProperties.Contains(property))
                 {
                     return true;
                 }
@@ -905,20 +886,16 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
             /// <summary>
             /// Tests a <see cref="IEdmProperty"/> is defined on this type.
             /// </summary>
-            /// <param name="structuredType">The Edm structured Type.</param>
             /// <param name="property">The test Edm property.</param>
             /// <returns>True/false</returns>
-            public bool IsNavigationPropertyDefined(IEdmStructuredType structuredType, IEdmProperty property)
+            public bool IsNavigationPropertyDefined(IEdmNavigationProperty property)
             {
                 if (property == null)
                 {
                     return false;
                 }
 
-                EdmStructuralTypeInfo typeInfo = GetStructuralTypeInfo(structuredType);
-                Contract.Assert(typeInfo != null);
-
-                if (typeInfo.AllNavigationProperties != null && typeInfo.AllNavigationProperties.Contains(property))
+                if (AllNavigationProperties != null && AllNavigationProperties.Contains(property))
                 {
                     return true;
                 }
@@ -929,107 +906,27 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
             /// <summary>
             /// Tests a <see cref="IEdmOperation"/> is bounded to this type.
             /// </summary>
-            /// <param name="structuredType">The test Edm structured Type.</param>
             /// <param name="operation">The test Edm operation (action/function).</param>
             /// <returns>True/false</returns>
-            public bool IsOperationBounded(IEdmStructuredType structuredType, IEdmOperation operation)
+            public bool IsOperationBounded(IEdmOperation operation)
             {
                 if (operation == null)
                 {
                     return false;
                 }
 
-                EdmStructuralTypeInfo typeInfo = GetStructuralTypeInfo(structuredType);
-                Contract.Assert(typeInfo != null);
-
-                if (typeInfo.AllActions != null && operation.IsAction() && typeInfo.AllActions.Contains(operation))
+                if (AllActions != null && operation.IsAction() && AllActions.Contains(operation))
                 {
                     return true;
                 }
 
-                if (typeInfo.AllFunctions != null && operation.IsFunction() && typeInfo.AllFunctions.Contains(operation))
+                if (AllFunctions != null && operation.IsFunction() && AllFunctions.Contains(operation))
                 {
                     return true;
                 }
 
                 return false;
             }
-
-            private class EdmStructuralTypeInfo
-            {
-                public ISet<IEdmStructuralProperty> AllStructuralProperties { get; set; }
-
-                public ISet<IEdmNavigationProperty> AllNavigationProperties { get; set; }
-
-                public ISet<IEdmAction> AllActions { get; set; }
-
-                public ISet<IEdmFunction> AllFunctions { get; set; }
-            }
-
-            private EdmStructuralTypeInfo GetStructuralTypeInfo(IEdmStructuredType structuredType)
-            {
-                if (_structuralTypeInfos == null)
-                {
-                    _structuralTypeInfos = new Dictionary<IEdmStructuredType, EdmStructuralTypeInfo>();
-                }
-
-                EdmStructuralTypeInfo typeInfo;
-                if (!_structuralTypeInfos.TryGetValue(structuredType, out typeInfo))
-                {
-                    typeInfo = CrateStructuralTypeInfo(structuredType);
-                    _structuralTypeInfos[structuredType] = typeInfo;
-                }
-
-                return typeInfo;
-            }
-
-            private EdmStructuralTypeInfo CrateStructuralTypeInfo(IEdmStructuredType structuredType)
-            {
-                if (structuredType == null)
-                {
-                    throw Error.ArgumentNull("structuredType");
-                }
-
-                EdmStructuralTypeInfo typeInfo = new EdmStructuralTypeInfo();
-
-                foreach (var edmProperty in structuredType.Properties())
-                {
-                    switch (edmProperty.PropertyKind)
-                    {
-                        case EdmPropertyKind.Structural:
-                            if (typeInfo.AllStructuralProperties == null)
-                            {
-                                typeInfo.AllStructuralProperties = new HashSet<IEdmStructuralProperty>();
-                            }
-
-                            typeInfo.AllStructuralProperties.Add((IEdmStructuralProperty)edmProperty);
-                            break;
-
-                        case EdmPropertyKind.Navigation:
-                            if (typeInfo.AllNavigationProperties == null)
-                            {
-                                typeInfo.AllNavigationProperties = new HashSet<IEdmNavigationProperty>();
-                            }
-
-                            typeInfo.AllNavigationProperties.Add((IEdmNavigationProperty)edmProperty);
-                            break;
-                    }
-                }
-
-                IEdmEntityType entityType = structuredType as IEdmEntityType;
-                if (entityType != null)
-                {
-                    var actions = _edmModel.GetAvailableActions(entityType);
-                    typeInfo.AllActions = actions.Any() ? new HashSet<IEdmAction>(actions) : null;
-
-                    var functions = _edmModel.GetAvailableFunctions(entityType);
-                    typeInfo.AllFunctions = functions.Any() ? new HashSet<IEdmFunction>(functions) : null;
-                }
-
-                return typeInfo;
-            }
-
-
         }
     }
 }
