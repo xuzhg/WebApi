@@ -118,8 +118,8 @@ namespace Microsoft.AspNet.OData.Query.Expressions
                     continue;
                 }
 
-                // Typically, a path like:  "~/NS.BaseType/NS.SubType1/NS.SubType2/PropertyOnSubType2" is not-allowed ( but valid? )
-                // However, that path is same as "~/NS.SubType2/PropertyOnSubType2",
+                // Theorically, a path like:  "~/NS.BaseType/NS.SubType1/NS.SubType2/PropertyOnSubType2" is valid(?) but not allowed.
+                // However, that path is same as "~/NS.SubType2/PropertyOnSubType2" and skip the others'.
                 // so, Let's only care about the last segment in the leading segments.
                 // if we have the leading segments, and the last segment must be the type segment and it's verified.
                 if (segment is TypeSegment)

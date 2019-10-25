@@ -70,7 +70,7 @@ namespace Microsoft.AspNet.OData.Test.Formatter.Serialization
         [InlineData(null, "Orders", true, "City,ID,Name,SimpleEnum,SpecialCustomerProperty", "Account,Address,OtherAccounts,SpecialAddress")] // simple expand on derived type -> select all
         [InlineData("ID,Name,Orders", "Orders", false, "ID,Name", null)] // expand and select -> select requested
         [InlineData("ID,Name,Orders", "Orders", true, "ID,Name", null)] // expand and select on derived type -> select requested
-        [InlineData("NS.SpecialCustomer/SpecialCustomerProperty", null, false, "SpecialCustomerProperty", null)] // select derived type properties -> select none
+        [InlineData("NS.SpecialCustomer/SpecialCustomerProperty", null, false, null, null)] // select derived type properties -> select none
         [InlineData("NS.SpecialCustomer/SpecialCustomerProperty", null, true, "SpecialCustomerProperty", null)] // select derived type properties on derived type -> select requested
         [InlineData("ID", "Orders($select=ID),Orders($expand=Customer($select=ID))", true, "ID", null)] // deep expand and selects
         public void SelectProperties_SelectsExpectedProperties_OnCustomer(
@@ -405,19 +405,30 @@ namespace Microsoft.AspNet.OData.Test.Formatter.Serialization
             Assert.NotNull(firstLevelSelected.Value.SelectAndExpand);
 
             // Assert: Second Level
-            SelectExpandNode subSelectExpandNode = new SelectExpandNode(firstLevelSelected.Value.SelectAndExpand, _model.Address, _model.Model);
-            Assert.Null(subSelectExpandNode.SelectedComplexes);
-            Assert.NotNull(subSelectExpandNode.SelectedStructuralProperties);
-            Assert.Equal("SubAddressProperty", Assert.Single(subSelectExpandNode.SelectedStructuralProperties).Name);
+            {
+                // use the base type to test
+                SelectExpandNode subSelectExpandNode = new SelectExpandNode(firstLevelSelected.Value.SelectAndExpand, _model.Address, _model.Model);
+                Assert.Null(subSelectExpandNode.SelectedStructuralProperties);
+                Assert.Null(subSelectExpandNode.SelectedComplexes);
+                Assert.Null(subSelectExpandNode.ExpandedProperties);
+                Assert.Null(subSelectExpandNode.SelectedNavigationProperties);
+            }
+            {
+                // use the sub type to test
+                SelectExpandNode subSelectExpandNode = new SelectExpandNode(firstLevelSelected.Value.SelectAndExpand, subComplexType, _model.Model);
+                Assert.Null(subSelectExpandNode.SelectedComplexes);
+                Assert.NotNull(subSelectExpandNode.SelectedStructuralProperties);
+                Assert.Equal("SubAddressProperty", Assert.Single(subSelectExpandNode.SelectedStructuralProperties).Name);
 
-            Assert.NotNull(subSelectExpandNode.ExpandedProperties);
-            var expandedProperty = Assert.Single(subSelectExpandNode.ExpandedProperties);
-            Assert.Equal("CnAddressOrderNav", expandedProperty.Key.Name);
+                Assert.NotNull(subSelectExpandNode.ExpandedProperties);
+                var expandedProperty = Assert.Single(subSelectExpandNode.ExpandedProperties);
+                Assert.Equal("CnAddressOrderNav", expandedProperty.Key.Name);
 
-            Assert.NotNull(expandedProperty.Value);
-            Assert.NotNull(expandedProperty.Value.SelectAndExpand);
-            Assert.True(expandedProperty.Value.SelectAndExpand.AllSelected);
-            Assert.Empty(expandedProperty.Value.SelectAndExpand.SelectedItems);
+                Assert.NotNull(expandedProperty.Value);
+                Assert.NotNull(expandedProperty.Value.SelectAndExpand);
+                Assert.True(expandedProperty.Value.SelectAndExpand.AllSelected);
+                Assert.Empty(expandedProperty.Value.SelectAndExpand.SelectedItems);
+            }
         }
 
         [Theory]
@@ -433,8 +444,8 @@ namespace Microsoft.AspNet.OData.Test.Formatter.Serialization
         [InlineData("ID,Orders", "Orders", true, null)] // simple expand with corresponding select on derived type -> select none
         [InlineData("ID,Orders", null, false, "Orders")] // simple select without corresponding expand -> select requested
         [InlineData("ID,Orders", null, true, "Orders")] // simple select with corresponding expand on derived type -> select requested
-        [InlineData("NS.SpecialCustomer/SpecialOrders", "", false, "SpecialOrders")] // select derived type properties -> select none
-        [InlineData("NS.SpecialCustomer/SpecialOrders", "", true, "SpecialOrders")] // select derived type properties on derived type -> select requested
+        [InlineData("NS.SpecialCustomer/SpecialOrders", null, false, null)] // select derived type properties -> select none
+        [InlineData("NS.SpecialCustomer/SpecialOrders", null, true, "SpecialOrders")] // select derived type properties on derived type -> select requested
         public void SelectNavigationProperties_SelectsExpectedProperties(string select, string expand, bool specialCustomer, string propertiesToSelect)
         {
             // Arrange
@@ -469,7 +480,7 @@ namespace Microsoft.AspNet.OData.Test.Formatter.Serialization
         [InlineData("Orders", "Orders", false, "Orders")] // only expand -> expand requested
         [InlineData("ID,Orders", "Orders", false, "Orders")] // simple expand and expand in select -> expand requested
         [InlineData("ID,Orders", "Orders", true, "Orders")] // simple expand and expand in select on derived type -> expand requested
-        [InlineData(null, "NS.SpecialCustomer/SpecialOrders", false, "SpecialOrders")] // expand derived navigation property -> expand requested
+        [InlineData(null, "NS.SpecialCustomer/SpecialOrders", false, null)] // expand derived navigation property -> expand requested
         [InlineData(null, "NS.SpecialCustomer/SpecialOrders", true, "SpecialOrders")] // expand derived navigation property on derived type -> expand requested
         public void ExpandNavigationProperties_ExpandsExpectedProperties(string select, string expand, bool specialCustomer, string propertiesToExpand)
         {
@@ -500,11 +511,11 @@ namespace Microsoft.AspNet.OData.Test.Formatter.Serialization
         [InlineData("NS.*", true, 2, 10)]
         [InlineData("NS.upgrade", false, 1, null)] // select single action -> select requested action
         [InlineData("NS.upgrade", true, 1, null)]
-        [InlineData("NS.SpecialCustomer/NS.specialUpgrade", false, 1, null)] // select single derived action on base type -> select nothing
+        [InlineData("NS.SpecialCustomer/NS.specialUpgrade", false, null, null)] // select single derived action on base type -> select nothing
         [InlineData("NS.SpecialCustomer/NS.specialUpgrade", true, 1, null)] // select single derived action on derived type  -> select requested action
         [InlineData("NS.GetSalary", false, null, 1)] // select single function -> select requested function
         [InlineData("NS.GetSalary", true, null, 1)]
-        [InlineData("NS.SpecialCustomer/NS.IsSpecialUpgraded", false, null, 1)] // select single derived function on base type -> select nothing
+        [InlineData("NS.SpecialCustomer/NS.IsSpecialUpgraded", false, null, null)] // select single derived function on base type -> select nothing
         [InlineData("NS.SpecialCustomer/NS.IsSpecialUpgraded", true, null, 1)] // select single derived function on derived type  -> select requested function
         public void OperationsToBeSelected_Selects_ExpectedOperations(string select, bool specialCustomer, int? actionsSelected, int? functionsSelected)
         {
@@ -605,59 +616,82 @@ namespace Microsoft.AspNet.OData.Test.Formatter.Serialization
         }
         #endregion
 
-        #region Test GetAllProperties
+        #region Test EdmStructuralTypeInfo
         [Theory]
         [InlineData("Customer", 7, 1, 1, 8)]
         [InlineData("SpecialCustomer", 9, 2, 2, 10)]
         [InlineData("Order", 3, 1, 0, 0)]
         [InlineData("Address", 5, 0, 0, 0)]
-        public void GetAllProperties_ReturnsCorrectProperties(string typeName, int structurals, int navigations, int actions, int functions)
+        public void EdmStructuralTypeInfoCtor_ReturnsCorrectProperties(string typeName, int structurals, int navigations, int actions, int functions)
         {
             // Assert
-            ISet<IEdmStructuralProperty> allStructuralProperties;
-            ISet<IEdmNavigationProperty> allNavigationProperties;
-            ISet<IEdmAction> allActions;
-            ISet<IEdmFunction> allFunctions;
             IEdmStructuredType structuralType = _model.Model.SchemaElements.OfType<IEdmSchemaType>().FirstOrDefault(c => c.Name == typeName) as IEdmStructuredType;
             Assert.NotNull(structuralType); // Guard
 
             // Act
-            allStructuralProperties = SelectExpandNode.GetAllProperties(_model.Model, structuralType, out allNavigationProperties,
-                out allActions, out allFunctions);
+            var structuralTypeInfo = new SelectExpandNode.EdmStructuralTypeInfo(_model.Model, structuralType);
 
             // Assert
-            Assert.NotNull(allStructuralProperties);
-            Assert.Equal(structurals, allStructuralProperties.Count);
+            Assert.NotNull(structuralTypeInfo.AllStructuralProperties);
+            Assert.Equal(structurals, structuralTypeInfo.AllStructuralProperties.Count);
 
             if (navigations == 0)
             {
-                Assert.Null(allNavigationProperties);
+                Assert.Null(structuralTypeInfo.AllNavigationProperties);
             }
             else
             {
-                Assert.NotNull(allNavigationProperties);
-                Assert.Equal(navigations, allNavigationProperties.Count);
+                Assert.NotNull(structuralTypeInfo.AllNavigationProperties);
+                Assert.Equal(navigations, structuralTypeInfo.AllNavigationProperties.Count);
             }
 
             if (actions == 0)
             {
-                Assert.Null(allActions);
+                Assert.Null(structuralTypeInfo.AllActions);
             }
             else
             {
-                Assert.NotNull(allActions);
-                Assert.Equal(actions, allActions.Count);
+                Assert.NotNull(structuralTypeInfo.AllActions);
+                Assert.Equal(actions, structuralTypeInfo.AllActions.Count);
             }
 
             if (functions == 0)
             {
-                Assert.Null(allFunctions);
+                Assert.Null(structuralTypeInfo.AllFunctions);
             }
             else
             {
-                Assert.NotNull(allFunctions);
-                Assert.Equal(functions, allFunctions.Count);
+                Assert.NotNull(structuralTypeInfo.AllFunctions);
+                Assert.Equal(functions, structuralTypeInfo.AllFunctions.Count);
             }
+        }
+
+        [Fact]
+        public void EdmStructuralTypeInfo_IsStructuralPropertyDefined_ReturnsCorrectBoolean()
+        {
+            // Assert
+            var structuralTypeInfo = new SelectExpandNode.EdmStructuralTypeInfo(_model.Model, _model.Customer);
+
+            IEdmStructuralProperty property = _model.Customer.DeclaredStructuralProperties().FirstOrDefault();
+            IEdmStructuralProperty addressProperty = _model.Address.DeclaredStructuralProperties().FirstOrDefault();
+
+            // Act & Assert
+            Assert.True(structuralTypeInfo.IsStructuralPropertyDefined(property));
+            Assert.False(structuralTypeInfo.IsStructuralPropertyDefined(addressProperty));
+        }
+
+        [Fact]
+        public void EdmStructuralTypeInfo_IsNavigationPropertyDefined_ReturnsCorrectBoolean()
+        {
+            // Assert
+            var structuralTypeInfo = new SelectExpandNode.EdmStructuralTypeInfo(_model.Model, _model.Customer);
+
+            IEdmNavigationProperty property = _model.Customer.DeclaredNavigationProperties().FirstOrDefault();
+            IEdmNavigationProperty orderProperty = _model.Order.DeclaredNavigationProperties().FirstOrDefault();
+
+            // Act & Assert
+            Assert.True(structuralTypeInfo.IsNavigationPropertyDefined(property));
+            Assert.False(structuralTypeInfo.IsNavigationPropertyDefined(orderProperty));
         }
         #endregion
 

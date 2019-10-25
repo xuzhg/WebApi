@@ -34,8 +34,8 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
         /// <summary>
         /// Initializes a new instance of the <see cref="ODataSerializerContext"/> class.
         /// </summary>
-        /// <param name="resource">The resource whose navigation property is being expanded.</param>
-        /// <param name="selectExpandClause">The <see cref="SelectExpandClause"/> for the navigation property being expanded.</param>
+        /// <param name="resource">The resource whose property is being nested.</param>
+        /// <param name="selectExpandClause">The <see cref="SelectExpandClause"/> for the property being nested.</param>
         /// <param name="edmProperty">The complex property being nested or the navigation property being expanded.
         /// If the resource property is the dynamic complex, the resource property is null.
         /// </param>
@@ -49,12 +49,12 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
         /// <summary>
         /// Initializes a new instance of the <see cref="ODataSerializerContext"/> class for nested resources.
         /// </summary>
-        /// <param name="resource">The resource whose navigation property is being expanded.</param>
+        /// <param name="resource">The resource whose property is being nested.</param>
         /// <param name="edmProperty">The complex property being nested or the navigation property being expanded.
         /// If the resource property is the dynamic complex, the resource property is null.
         /// </param>
-        /// <param name="queryContext">The <see cref="ODataQueryContext"/> for the navigation property being expanded.</param>
-        /// <param name="currentSelectItem">The <see cref="SelectItem"/> for the navigation property being expanded.></param>
+        /// <param name="queryContext">The <see cref="ODataQueryContext"/> for the property being nested.</param>
+        /// <param name="currentSelectItem">The <see cref="SelectItem"/> for the property being nested.></param>
         internal ODataSerializerContext(ResourceContext resource, IEdmProperty edmProperty, ODataQueryContext queryContext, SelectItem currentSelectItem)
         {
             if (resource == null)
@@ -93,7 +93,6 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
                 if (pathSelectItem != null)
                 {
                     SelectExpandClause = pathSelectItem.SelectAndExpand;
-                    // NavigationSource = pathSelectItem.NavigationSource;
                     NavigationSource = resource.NavigationSource; // Use it's parent navigation source.
                 }
 

@@ -42,6 +42,15 @@ namespace Microsoft.AspNet.OData.Query.Expressions
         /// Creates a new instance of the <see cref="SelectExpandIncludeProperty"/> class.
         /// </summary>
         /// <param name="propertySegment">The property segment that has this select expand item.</param>
+        public SelectExpandIncludeProperty(PropertySegment propertySegment)
+            : this (propertySegment, null)
+        {
+        }
+
+        /// <summary>
+        /// Creates a new instance of the <see cref="SelectExpandIncludeProperty"/> class.
+        /// </summary>
+        /// <param name="propertySegment">The property segment that has this select expand item.</param>
         /// <param name="navigationSource">The targe navigation source of this property segment.</param>
         public SelectExpandIncludeProperty(PropertySegment propertySegment, IEdmNavigationSource navigationSource)
         {

@@ -260,6 +260,7 @@ namespace Microsoft.AspNet.OData.Query.Expressions
         {
             Contract.Assert(source != null);
 
+            // If it's not a structural type, just return the source.
             if (structuredType == null)
             {
                 return source;
@@ -314,7 +315,7 @@ namespace Microsoft.AspNet.OData.Query.Expressions
                 ISet<IEdmStructuralProperty> autoSelectedProperties;
 
                 bool isContainDynamicPropertySelection = GetSelectExpandProperties(_model, structuredType, navigationSource, selectExpandClause,
-                    out propertiesToInclude,
+                    out propertiesToInclude, 
                     out propertiesToExpand,
                     out autoSelectedProperties);
 
@@ -421,17 +422,15 @@ namespace Microsoft.AspNet.OData.Query.Expressions
                     IEnumerable<IEdmStructuralProperty> concurrencyProperties = model.GetConcurrencyProperties(navigationSource);
                     foreach (IEdmStructuralProperty concurrencyProperty in concurrencyProperties)
                     {
-                        if (concurrencyProperty.DeclaringType == structuredType)
+                        if (concurrencyProperty.DeclaringType == structuredType &&
+                            !currentLevelPropertiesInclude.Keys.Contains(concurrencyProperty))
                         {
-                            if (!currentLevelPropertiesInclude.Keys.Contains(concurrencyProperty))
+                            if (autoSelectedProperties == null)
                             {
-                                if (autoSelectedProperties == null)
-                                {
-                                    autoSelectedProperties = new HashSet<IEdmStructuralProperty>();
-                                }
-
-                                autoSelectedProperties.Add(concurrencyProperty);
+                                autoSelectedProperties = new HashSet<IEdmStructuralProperty>();
                             }
+
+                            autoSelectedProperties.Add(concurrencyProperty);
                         }
                     }
                 }
@@ -467,6 +466,9 @@ namespace Microsoft.AspNet.OData.Query.Expressions
             // Verify and process the $expand=... path.
             IList<ODataPathSegment> remainingSegments;
             ODataPathSegment firstNonTypeSegment = expandedItem.PathToNavigationProperty.GetFirstNonTypeCastSegment(out remainingSegments, out _);
+
+            // for $expand=NS.SubType/Nav, we don't care about the leading type segment, because with or without the type segment
+            // the "nav" property value expression should be built into the property container.
 
             PropertySegment firstStructuralPropertySegment = firstNonTypeSegment as PropertySegment;
             if (firstStructuralPropertySegment != null)
@@ -520,6 +522,9 @@ namespace Microsoft.AspNet.OData.Query.Expressions
             // Verify and process the $select path
             IList<ODataPathSegment> remainingSegments;
             ODataPathSegment firstNonTypeSegment = pathSelectItem.SelectedPath.GetFirstNonTypeCastSegment(out remainingSegments, out _);
+
+            // for $select=NS.SubType/Property, we don't care about the leading type segment, because with or without the type segment
+            // the "Property" property value expression should be built into the property container.
 
             PropertySegment firstSturucturalPropertySegment = firstNonTypeSegment as PropertySegment;
             if (firstSturucturalPropertySegment != null)
