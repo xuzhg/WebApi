@@ -1261,25 +1261,25 @@ namespace Microsoft.AspNet.OData.Test.Query.Expressions
             Assert.Equal("Birthday", (property as ConstantExpression).Value);
         }
 
-        [Fact]
+        [Fact(Skip = "if (!castType.IsAssignableFrom(originalType)) retrun true?")]
         public void CreatePropertyNameExpression_ReturnsConstantExpression_IfPropertyTypeCannotAssignedToElementType()
         {
             // Arrange
-            Assert.False(_order.IsOrInheritsFrom(_customer)); // make sure order has no inheritance-ship with customer.
+            IEdmComplexType complexType = _model.SchemaElements.OfType<IEdmComplexType>().First(c => c.Name == "QueryAddress");
+            Assert.False(complexType.IsOrInheritsFrom(_customer)); // make sure order has no inheritance-ship with customer.
 
-            IEdmProperty edmProperty = _order.FindProperty("Title");
+            IEdmProperty edmProperty = complexType.FindProperty("Street");
             Assert.NotNull(edmProperty);
 
             Expression source = Expression.Parameter(typeof(QueryCustomer), "aCustomer");
-            SelectExpandBinder binder = GetBinder<QueryCustomer>(_model);
 
             // Act
-            Expression property = binder.CreatePropertyNameExpression(_customer, edmProperty, source);
+            Expression property = _binder.CreatePropertyNameExpression(_customer, edmProperty, source);
 
             // Assert
             Assert.Equal(ExpressionType.Constant, property.NodeType);
             Assert.Equal(typeof(string), property.Type);
-            Assert.Equal("Title", (property as ConstantExpression).Value);
+            Assert.Equal("Street", (property as ConstantExpression).Value);
         }
 
         [Fact]
@@ -1441,155 +1441,109 @@ namespace Microsoft.AspNet.OData.Test.Query.Expressions
         }
 
         [Fact]
-        public void CreatePropertyValueExpressionWithFilter_Collection_ThrowsODataException_IfMappingTypeIsNotFoundInModel()
+        public void CreatePropertyValueExpression_Collection_ThrowsODataException_IfMappingTypeIsNotFoundInModel()
         {
             // Arrange
-            var customer = Expression.Constant(new QueryCustomer());
-            var ordersProperty = _customer.NavigationProperties().Single(p => p.Name == "Orders");
-            var parser = new ODataQueryOptionParser(_model, _order, _orders,
-                new Dictionary<string, string> { { "$filter", "Id eq 1" } });
+            _model.SetAnnotationValue(_order, new ClrTypeAnnotation(null));
 
-            var filterClause = parser.ParseFilter();
-            ExpandedNavigationSelectItem expandItem = new ExpandedNavigationSelectItem(new ODataExpandPath(new NavigationPropertySegment(_order.NavigationProperties().Single(), navigationSource: _customers)),
-                null, null, filterClause, null, null, null, null, null, null);
+            var source = Expression.Constant(new QueryCustomer
+            {
+                Orders = new[]
+                {
+                    new QueryOrder { Id = 1 },
+                    new QueryOrder { Id = 2 }
+                }
+            });
+
+            var ordersProperty = _customer.NavigationProperties().Single(p => p.Name == "Orders");
+
+            SelectExpandClause selectExpand = ParseSelectExpand(null, "Orders($filter=Id eq 1)", _model, _customer, _customers);
+            ExpandedNavigationSelectItem expandItem = Assert.Single(selectExpand.SelectedItems) as ExpandedNavigationSelectItem;
+            Assert.NotNull(expandItem);
+            Assert.NotNull(expandItem.FilterOption);
 
             // Act & Assert
             ExceptionAssert.Throws<ODataException>(
-                () => _binder.CreatePropertyValueExpression(_customer, ordersProperty, customer, filterClause),
-                "The provided mapping does not contain a resource for the resource type 'NS.Order'.");
-
-            // NetFx and NetCore differ in the way Expression is converted to a string.
-            //Assert.Equal(ExpressionType.Convert, property.NodeType);
-            //var unaryExpression = (property as UnaryExpression);
-            //Assert.NotNull(unaryExpression);
-            //Assert.Equal(String.Format("{0}.ID", customer.ToString()), unaryExpression.Operand.ToString());
-            //Assert.Equal(typeof(int?), unaryExpression.Type);
+                () => _binder.CreatePropertyValueExpression(_customer, ordersProperty, source, expandItem.FilterOption),
+                String.Format("The provided mapping does not contain a resource for the resource type '{0}'.",
+                ordersProperty.Type.Definition.AsElementType().FullTypeName()));
         }
 
-        //[Fact]
-        //public void CreatePropertyValueExpressionWithFilter_ThrowsODataException_IfMappingTypeIsNotFoundInModel()
-        //{
-        //    // Arrange
-        //    _model.Model.SetAnnotationValue<ClrTypeAnnotation>(_model.Order, value: null);
-        //    var customer = Expression.Constant(new Customer());
-        //    var ordersProperty = _model.Customer.NavigationProperties().Single(p => p.Name == "Orders");
-        //    var parser = new ODataQueryOptionParser(
-        //        _model.Model,
-        //        _model.Order,
-        //        _model.Orders,
-        //        new Dictionary<string, string> { { "$filter", "ID eq 1" } });
-        //    var filterCaluse = parser.ParseFilter();
-
-        //    // Act & Assert
-        //    ExceptionAssert.Throws<ODataException>(
-        //        () => _binder.CreatePropertyValueExpressionWithFilter(_model.Customer, ordersProperty, customer, filterCaluse),
-        //        "The provided mapping does not contain a resource for the resource type 'NS.Order'.");
-        //}
-
-        [Fact]
-        public void CreatePropertyValueExpressionWithFilter_Collection_Works_HandleNullPropagationOptionIsTrue()
+        [Theory]
+        [InlineData(HandleNullPropagationOption.True)]
+        [InlineData(HandleNullPropagationOption.False)]
+        public void CreatePropertyValueExpression_Collection_Works_HandleNullPropagationOption(HandleNullPropagationOption nullOption)
         {
             // Arrange
-            _settings.HandleNullPropagation = HandleNullPropagationOption.True;
-            var customer =
-                Expression.Constant(new QueryCustomer
+            _settings.HandleNullPropagation = nullOption;
+            var source = Expression.Constant(new QueryCustomer
+            {
+                Orders = new[]
                 {
-                    Orders = new[]
-                    {
-                        new QueryOrder { Id = 1 },
-                        new QueryOrder { Id = 2 }
-                    }
-                });
+                    new QueryOrder { Id = 1 },
+                    new QueryOrder { Id = 2 }
+                }
+            });
+
             var ordersProperty = _customer.NavigationProperties().Single(p => p.Name == "Orders");
-            var parser = new ODataQueryOptionParser(
-                _model,
-                _order,
-                _orders,
-                new Dictionary<string, string> { { "$filter", "Id eq 1" } });
-            var filterClause = parser.ParseFilter();
-            ExpandedNavigationSelectItem expandItem = new ExpandedNavigationSelectItem(new ODataExpandPath(new NavigationPropertySegment(_order.NavigationProperties().Single(), navigationSource: _customers)),
-                            null, null, filterClause, null, null, null, null, null, null);
+
+            SelectExpandClause selectExpand = ParseSelectExpand(null, "Orders($filter=Id eq 1)", _model, _customer, _customers);
+            ExpandedNavigationSelectItem expandItem = Assert.Single(selectExpand.SelectedItems) as ExpandedNavigationSelectItem;
+            Assert.NotNull(expandItem);
+            Assert.NotNull(expandItem.FilterOption);
 
             // Act
-            var filterInExpand = _binder.CreatePropertyValueExpression(
-                _customer,
-                ordersProperty,
-                customer,
-                filterClause);
+            var filterInExpand = _binder.CreatePropertyValueExpression(_customer, ordersProperty, source, expandItem.FilterOption);
 
             // Assert
-            Assert.Equal(
-                string.Format(
-                    "IIF((value({0}) == null), null, IIF((value({0}).Orders == null), null, " +
-                    "value({0}).Orders.Where($it => ($it.Id == value({1}).TypedProperty))))",
-                    customer.Type,
-                    "Microsoft.AspNet.OData.Query.Expressions.LinqParameterContainer+TypedLinqParameterContainer`1[System.Int32]"),
-                filterInExpand.ToString());
+            if (nullOption == HandleNullPropagationOption.True)
+            {
+                Assert.Equal(
+                    string.Format(
+                        "IIF((value({0}) == null), null, IIF((value({0}).Orders == null), null, " +
+                        "value({0}).Orders.Where($it => ($it.Id == value({1}).TypedProperty))))",
+                        source.Type,
+                        "Microsoft.AspNet.OData.Query.Expressions.LinqParameterContainer+TypedLinqParameterContainer`1[System.Int32]"),
+                    filterInExpand.ToString());
+            }
+            else
+            {
+                Assert.Equal(
+                    string.Format(
+                        "value({0}).Orders.Where($it => ($it.Id == value(" +
+                        "Microsoft.AspNet.OData.Query.Expressions.LinqParameterContainer+TypedLinqParameterContainer`1[System.Int32]).TypedProperty))",
+                        source.Type),
+                    filterInExpand.ToString());
+            }
+
             var orders = Expression.Lambda(filterInExpand).Compile().DynamicInvoke() as IEnumerable<QueryOrder>;
-            Assert.Single(orders);
-            Assert.Equal(1, orders.ToList()[0].Id);
+            QueryOrder order = Assert.Single(orders);
+            Assert.Equal(1, order.Id);
         }
 
         [Fact]
-        public void CreatePropertyValueExpressionWithFilter_Collection_Works_HandleNullPropagationOptionIsFalse()
+        public void CreatePropertyValueExpression_Single_ThrowsODataException_IfMappingTypeIsNotFoundInModel()
         {
             // Arrange
-            _settings.HandleNullPropagation = HandleNullPropagationOption.False;
-            var customer =
-                Expression.Constant(new QueryCustomer { Orders = new[] { new QueryOrder { Id = 1 }, new QueryOrder { Id = 2 } } });
-            var ordersProperty = _customer.NavigationProperties().Single(p => p.Name == "Orders");
-            var parser = new ODataQueryOptionParser(
-                _model,
-                _order,
-                _orders,
-                new Dictionary<string, string> { { "$filter", "Id eq 1" } });
-            var filterClause = parser.ParseFilter();
-            ExpandedNavigationSelectItem expandItem = new ExpandedNavigationSelectItem(new ODataExpandPath(new NavigationPropertySegment(_order.NavigationProperties().Single(), navigationSource: _customers)),
-                            null, null, filterClause, null, null, null, null, null, null);
+            _model.SetAnnotationValue(_customer, new ClrTypeAnnotation(null));
 
-            // Act
-            var filterInExpand = _binder.CreatePropertyValueExpression(
-                _customer,
-                ordersProperty,
-                customer,
-                filterClause);
-
-            // Assert
-            Assert.Equal(
-                string.Format(
-                    "value({0}).Orders.Where($it => ($it.Id == value(" +
-                    "Microsoft.AspNet.OData.Query.Expressions.LinqParameterContainer+TypedLinqParameterContainer`1[System.Int32]).TypedProperty))",
-                    customer.Type),
-                filterInExpand.ToString());
-            var orders = Expression.Lambda(filterInExpand).Compile().DynamicInvoke() as IEnumerable<QueryOrder>;
-            Assert.Single(orders);
-            Assert.Equal(1, orders.ToList()[0].Id);
-        }
-
-        [Fact]
-        public void CreatePropertyValueExpressionWithFilter_Single_ThrowsODataException_IfMappingTypeIsNotFoundInModel()
-        {
-            // Arrange
             _settings.HandleReferenceNavigationPropertyExpandFilter = true;
-            var order = Expression.Constant(new QueryOrder());
+            var source = Expression.Constant(new QueryOrder());
             var customerProperty = _order.NavigationProperties().Single(p => p.Name == "Customer");
 
-            var parser = new ODataQueryOptionParser(
-                _model,
-                _customer,
-                _customers,
-                new Dictionary<string, string> { { "$filter", "Id eq 1" } });
-            var filterClause = parser.ParseFilter();
-            ExpandedNavigationSelectItem expandItem = new ExpandedNavigationSelectItem(new ODataExpandPath(new NavigationPropertySegment(_order.NavigationProperties().Single(), navigationSource: _customers)),
-                            null, null, filterClause, null, null, null, null, null, null);
+            SelectExpandClause selectExpand = ParseSelectExpand(null, "Customer($filter=Id ne 1)", _model, _order, _orders);
+            ExpandedNavigationSelectItem expandItem = Assert.Single(selectExpand.SelectedItems) as ExpandedNavigationSelectItem;
+            Assert.NotNull(expandItem);
+            Assert.NotNull(expandItem.FilterOption);
+
             // Act & Assert
             ExceptionAssert.Throws<ODataException>(
-                () => _binder.CreatePropertyValueExpression(_order, customerProperty, order, filterClause),
-                "The provided mapping does not contain a resource for the resource type 'NS.Customer'.");
+                () => _binder.CreatePropertyValueExpression(_order, customerProperty, source, expandItem.FilterOption),
+                String.Format("The provided mapping does not contain a resource for the resource type '{0}'.", customerProperty.Type.FullName()));
         }
 
         [Fact]
-        public void CreatePropertyValueExpressionWithFilter_Single_Works_IfSettingIsOff()
+        public void CreatePropertyValueExpression_Single_Works_IfSettingIsOff()
         {
             // Arrange
             _settings.HandleReferenceNavigationPropertyExpandFilter = false;
@@ -1604,16 +1558,14 @@ namespace Microsoft.AspNet.OData.Test.Query.Expressions
             );
             var customerProperty = _order.NavigationProperties().Single(p => p.Name == "Customer");
 
-            var parser = new ODataQueryOptionParser(
-                _model,
-                _customer,
-                _customers,
-                new Dictionary<string, string> { { "$filter", "Id ne 1" } });
-            var filterClause = parser.ParseFilter();
-            ExpandedNavigationSelectItem expandItem = new ExpandedNavigationSelectItem(new ODataExpandPath(new NavigationPropertySegment(_order.NavigationProperties().Single(), navigationSource: _customers)),
-                            null, null, filterClause, null, null, null, null, null, null);
+            SelectExpandClause selectExpand = ParseSelectExpand(null, "Customer($filter=Id ne 1)", _model, _order, _orders);
+            Assert.True(selectExpand.AllSelected); // Guard
+            ExpandedNavigationSelectItem expandItem = Assert.Single(selectExpand.SelectedItems) as ExpandedNavigationSelectItem;
+            Assert.NotNull(expandItem);
+            Assert.NotNull(expandItem.FilterOption);
+
             // Act 
-            var filterInExpand = _binder.CreatePropertyValueExpression(_order, customerProperty, order, filterClause);
+            var filterInExpand = _binder.CreatePropertyValueExpression(_order, customerProperty, order, expandItem.FilterOption);
 
             // Assert
             var customer = Expression.Lambda(filterInExpand).Compile().DynamicInvoke() as QueryCustomer;
@@ -1621,52 +1573,14 @@ namespace Microsoft.AspNet.OData.Test.Query.Expressions
             Assert.Equal(1, customer.Id);
         }
 
-        [Fact]
-        public void CreatePropertyValueExpressionWithFilter_Single_Works_HandleNullPropagationOptionIsTrue()
+        [Theory]
+        [InlineData(HandleNullPropagationOption.True)]
+        [InlineData(HandleNullPropagationOption.False)]
+        public void CreatePropertyValueExpression_Single_Works_HandleNullPropagationOption(HandleNullPropagationOption nullOption)
         {
             // Arrange
             _settings.HandleReferenceNavigationPropertyExpandFilter = true;
-            _settings.HandleNullPropagation = HandleNullPropagationOption.True;
-            var order = Expression.Constant(
-                    new QueryOrder
-                    {
-                        Customer = new QueryCustomer
-                        {
-                            Id = 1
-                        }
-                    }
-            );
-            var customerProperty = _order.NavigationProperties().Single(p => p.Name == "Customer");
-
-            var parser = new ODataQueryOptionParser(
-                _model,
-                _customer,
-                _customers,
-                new Dictionary<string, string> { { "$filter", "Id ne 1" } });
-            var filterClause = parser.ParseFilter();
-            ExpandedNavigationSelectItem expandItem = new ExpandedNavigationSelectItem(new ODataExpandPath(new NavigationPropertySegment(_order.NavigationProperties().Single(), navigationSource: _customers)),
-                            null, null, filterClause, null, null, null, null, null, null);
-            // Act
-            var filterInExpand = _binder.CreatePropertyValueExpression(_order, customerProperty, order, filterClause);
-
-            // Assert
-            Assert.Equal(
-                string.Format(
-                    "IIF((value({0}) == null), null, IIF((value({0}).Customer == null), null, " +
-                    "IIF((value({0}).Customer.Id != value(Microsoft.AspNet.OData.Query.Expressions.LinqParameterContainer+TypedLinqParameterContainer`1[System.Int32]).TypedProperty), " +
-                    "value({0}).Customer, null)))",
-                    order.Type),
-                filterInExpand.ToString());
-            var customer = Expression.Lambda(filterInExpand).Compile().DynamicInvoke() as QueryCustomer;
-            Assert.Null(customer);
-        }
-
-        [Fact]
-        public void CreatePropertyValueExpressionWithFilter_Single_Works_HandleNullPropagationOptionIsFalse()
-        {
-            // Arrange
-            _settings.HandleReferenceNavigationPropertyExpandFilter = true;
-            _settings.HandleNullPropagation = HandleNullPropagationOption.False;
+            _settings.HandleNullPropagation = nullOption;
             var source = Expression.Constant(
                     new QueryOrder
                     {
@@ -1678,24 +1592,36 @@ namespace Microsoft.AspNet.OData.Test.Query.Expressions
             );
             var customerProperty = _order.NavigationProperties().Single(p => p.Name == "Customer");
 
-            var parser = new ODataQueryOptionParser(
-                _model,
-                _customer,
-                _customers,
-                new Dictionary<string, string> { { "$filter", "Id ne 1" } });
-            var filterClause = parser.ParseFilter();
-            ExpandedNavigationSelectItem expandItem = new ExpandedNavigationSelectItem(new ODataExpandPath(new NavigationPropertySegment(_order.NavigationProperties().Single(), navigationSource: _customers)),
-                            null, null, filterClause, null, null, null, null, null, null);
+            SelectExpandClause selectExpand = ParseSelectExpand(null, "Customer($filter=Id ne 1)", _model, _order, _orders);
+            Assert.True(selectExpand.AllSelected); // Guard
+            ExpandedNavigationSelectItem expandItem = Assert.Single(selectExpand.SelectedItems) as ExpandedNavigationSelectItem;
+            Assert.NotNull(expandItem);
+            Assert.NotNull(expandItem.FilterOption);
+
             // Act
-            var filterInExpand = _binder.CreatePropertyValueExpression(_order, customerProperty, source, filterClause);
+            var filterInExpand = _binder.CreatePropertyValueExpression(_order, customerProperty, source, expandItem.FilterOption);
 
             // Assert
-            Assert.Equal(
-                string.Format(
-                    "IIF((value({0}).Customer.Id != value(Microsoft.AspNet.OData.Query.Expressions.LinqParameterContainer+TypedLinqParameterContainer`1[System.Int32]).TypedProperty), " +
-                    "value({0}).Customer, null)",
-                    source.Type),
-                filterInExpand.ToString());
+            if (nullOption == HandleNullPropagationOption.True)
+            {
+                Assert.Equal(
+                    string.Format(
+                        "IIF((value({0}) == null), null, IIF((value({0}).Customer == null), null, " +
+                        "IIF((value({0}).Customer.Id != value(Microsoft.AspNet.OData.Query.Expressions.LinqParameterContainer+TypedLinqParameterContainer`1[System.Int32]).TypedProperty), " +
+                        "value({0}).Customer, null)))",
+                        source.Type),
+                    filterInExpand.ToString());
+            }
+            else
+            {
+                Assert.Equal(
+                    string.Format(
+                        "IIF((value({0}).Customer.Id != value(Microsoft.AspNet.OData.Query.Expressions.LinqParameterContainer+TypedLinqParameterContainer`1[System.Int32]).TypedProperty), " +
+                        "value({0}).Customer, null)",
+                        source.Type),
+                    filterInExpand.ToString());
+            }
+
             var customer = Expression.Lambda(filterInExpand).Compile().DynamicInvoke() as QueryCustomer;
             Assert.Null(customer);
         }
@@ -1717,23 +1643,23 @@ namespace Microsoft.AspNet.OData.Test.Query.Expressions
             Assert.Null(result);
         }
 
-        //[Fact]
-        //public void CreateTypeNameExpression_ThrowsODataException_IfTypeHasNoMapping()
-        //{
-        //    // Arrange
-        //    IEdmEntityType baseType = new EdmEntityType("NS", "BaseType");
-        //    IEdmEntityType derivedType = new EdmEntityType("NS", "DerivedType", baseType);
-        //    EdmModel model = new EdmModel();
-        //    model.AddElement(baseType);
-        //    model.AddElement(derivedType);
+        [Fact]
+        public void CreateTypeNameExpression_ThrowsODataException_IfTypeHasNoMapping()
+        {
+            // Arrange
+            IEdmEntityType baseType = new EdmEntityType("NS", "BaseType");
+            IEdmEntityType derivedType = new EdmEntityType("NS", "DerivedType", baseType);
+            EdmModel model = new EdmModel();
+            model.AddElement(baseType);
+            model.AddElement(derivedType);
 
-        //    Expression source = Expression.Constant(42);
+            Expression source = Expression.Constant(42);
 
-        //    // Act & Assert
-        //    ExceptionAssert.Throws<ODataException>(
-        //        () => SelectExpandBinder.CreateTypeNameExpression(source, baseType, model),
-        //        "The provided mapping does not contain a resource for the resource type 'NS.DerivedType'.");
-        //}
+            // Act & Assert
+            ExceptionAssert.Throws<ODataException>(
+                () => SelectExpandBinder.CreateTypeNameExpression(source, baseType, model),
+                "The provided mapping does not contain a resource for the resource type 'NS.DerivedType'.");
+        }
 
         [Fact]
         public void CreateTypeNameExpression_ReturnsConditionalExpression_IfTypeHasDerivedTypes()
@@ -1771,21 +1697,19 @@ namespace Microsoft.AspNet.OData.Test.Query.Expressions
         {
             // Arrange
             _settings.EnableCorrelatedSubqueryBuffering = enableOptimization;
-            var customer =
-                Expression.Constant(new QueryCustomer { Orders = new[] { new QueryOrder { Id = 1 }, new QueryOrder { Id = 2 } } });
-            var parser = new ODataQueryOptionParser(
-                _model,
-                _customer,
-                _customers,
-                new Dictionary<string, string> { { "$expand", "Orders" } });
-            var expandClause = parser.ParseSelectAndExpand();
+            var source = Expression.Constant(new QueryCustomer
+            {
+                Orders = new[]
+                {
+                    new QueryOrder { Id = 1 },
+                    new QueryOrder { Id = 2 }
+                }
+            });
+
+            var expandClause = ParseSelectExpand(null, "Orders", _model, _customer, _customers);
 
             // Act
-            var expand = _binder.ProjectAsWrapper(
-                customer,
-                expandClause,
-                _customer,
-                _customers);
+            var expand = _binder.ProjectAsWrapper(source, expandClause, _customer, _customers);
 
             // Assert
             Assert.True(expand.ToString().Contains("ToList") == enableOptimization);
@@ -1799,21 +1723,19 @@ namespace Microsoft.AspNet.OData.Test.Query.Expressions
             // Arrange
             _settings.EnableCorrelatedSubqueryBuffering = enableOptimization;
             _settings.PageSize = 100;
-            var customer =
-                Expression.Constant(new QueryCustomer { Orders = new[] { new QueryOrder { Id = 1 }, new QueryOrder { Id = 2 } } });
-            var parser = new ODataQueryOptionParser(
-                _model,
-                _customer,
-                _customers,
-                new Dictionary<string, string> { { "$expand", "Orders" } });
-            var expandClause = parser.ParseSelectAndExpand();
+            var source = Expression.Constant(new QueryCustomer
+            {
+                Orders = new[]
+                {
+                    new QueryOrder { Id = 1 },
+                    new QueryOrder { Id = 2 }
+                }
+            });
+
+            var expandClause = ParseSelectExpand(null, "Orders", _model, _customer, _customers);
 
             // Act
-            var expand = _binder.ProjectAsWrapper(
-                customer,
-                expandClause,
-                _customer,
-                _customers);
+            var expand = _binder.ProjectAsWrapper(source, expandClause, _customer, _customers);
 
             // Assert
             Assert.True(expand.ToString().Contains("ToList") == enableOptimization);
@@ -1825,6 +1747,7 @@ namespace Microsoft.AspNet.OData.Test.Query.Expressions
             var customer = builder.EntitySet<QueryCustomer>("Customers").EntityType;
             builder.EntitySet<QueryOrder>("Orders");
             builder.EntitySet<QueryCity>("Cities");
+
             customer.Collection.Function("IsUpgraded").Returns<bool>().Namespace="NS";
             customer.Collection.Action("UpgradeAll").Namespace = "NS";
             return builder.GetEdmModel();

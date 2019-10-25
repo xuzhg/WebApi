@@ -1072,9 +1072,9 @@ namespace Microsoft.AspNet.OData.Query.Expressions
                     }
 
                     expression = Expression.Condition(
-                                    test: Expression.TypeIs(source, clrType),
-                                    ifTrue: Expression.Constant(derivedTypes[i].FullTypeName()),
-                                    ifFalse: expression);
+                        test: Expression.TypeIs(source, clrType),
+                        ifTrue: Expression.Constant(derivedTypes[i].FullTypeName()),
+                        ifFalse: expression);
                 }
 
                 return expression;
