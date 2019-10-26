@@ -464,7 +464,7 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
             throw new ODataException(Error.Format(SRResources.SelectionTypeNotSupported, segment.GetType().Name));
         }
 
-        private void MergeAllStructuralProperties(ISet<IEdmStructuralProperty> allStructuralProperties,
+        private static void MergeAllStructuralProperties(ISet<IEdmStructuralProperty> allStructuralProperties,
             IDictionary<IEdmStructuralProperty, SelectExpandIncludeProperty> currentLevelPropertiesInclude)
         {
             if (allStructuralProperties == null)

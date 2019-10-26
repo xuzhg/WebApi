@@ -8,50 +8,105 @@ namespace Microsoft.Test.E2E.AspNet.OData.NavigationPropertyOnComplexType
 {
     public class PeopleRepository
     {
-        public List<Person> people { get; set; }
-        public List<ZipCode> zipCodes;
+        public List<Person> People { get; private set; }
+
         public IDictionary<string, object> propertyBag = new Dictionary<string, object>();
 
         public PeopleRepository()
         {
-            zipCodes = new List<ZipCode>
+            var zipCodes = new List<ZipCode>
             {
                 new ZipCode { Zip = 98052, City = "Redmond", State="Washington"},
-                new ZipCode {Zip = 98030, City = "Kent", State = "Washington"},
-                new ZipCode {Zip = 98004, City = "Bellevue", State = "Washington"}
+                new ZipCode { Zip = 35816, City = "Huntsville", State = "Alabama"},
+                new ZipCode { Zip = 10048, City = "New York", State = "New York"}
             };
 
-            propertyBag.Add("key", zipCodes[1]);
-
-            people = new List<Person> { 
-                new Person { Id=1, FirstName = "Kate", LastName = "Jones", Age = 5, Location = new Address{ ZipCode = zipCodes[1], Street = "110th" }, Home = new Address{ ZipCode = zipCodes[0], Street = "110th" }, Order = new Orders{ Zip = new Address{ ZipCode = zipCodes[0], Street = "110th" }}},
-                new Person { Id =2, FirstName = "Lewis", LastName = "James", Age = 6 , Location = new GeoLocation{ ZipCode = zipCodes[1], Street = "110th", Latitude = "12.211", Longitude ="231.131" }, Home = new Address{ ZipCode = zipCodes[0], Street = "110th" }, Order = new Orders{ Zip = new Address{ ZipCode = zipCodes[0], Street = "110th" }}},
-                new Person { Id = 3, FirstName = "Carlos", LastName = "Park", Age = 7, Location = new Address{ ZipCode = zipCodes[2], Street = "110th" }, Home = new Address{ ZipCode = zipCodes[0], Street = "110th" }, Order = new Orders{ Zip = new Address{ ZipCode = zipCodes[0], Street = "110th" }}, PreciseLocation = new GeoLocation{Area = zipCodes[2], Latitude = "12", Longitude = "22", Street = "50th", ZipCode = zipCodes[1]}},
-                new Person { Id = 4, FirstName = "Carlos", LastName = "Park", Age = 7, Location = new Address{ ZipCode = zipCodes[2], Street = "110th" }, Home = new Address{ ZipCode = zipCodes[0], Street = "110th" }, Order = new Orders{ Zip = new Address{ ZipCode = zipCodes[0], Street = "110th" }, Order = new Orders{ Zip = new Address{ ZipCode = zipCodes[1], Street = "110th" }}}, PreciseLocation = new GeoLocation{Area = zipCodes[2], Latitude = "12", Longitude = "22", Street = "50th", ZipCode = zipCodes[1]}},
-                new Person { Id = 5, FirstName = "Carlos", LastName = "Park", Age = 7, Order = new Orders() {propertybag = propertyBag} }
-            };
-        }
-
-        public IEnumerable<Person> Get()
-        {
-            return people;
-        }
-
-        public Person Get(string firstName, string lastName)
-        {
-            return people.Where(p => p.FirstName == firstName && p.LastName == lastName).FirstOrDefault();
-        }
-
-        public Person Remove(string firstName, string lastName)
-        {
-            var p = Get(firstName, lastName);
-            if (p == null)
+            IDictionary<string, object> propertyBag = new Dictionary<string, object>
             {
-                return null;
-            }
+                {
+                    "DynamicAddress",
+                    new Address
+                    {
+                        Street = "",
+                        Emails = new List<string>
+                        {
+                            "abc@1.com",
+                            "xyz@2.com"
+                        }
+                    }
+                }
+            };
 
-            people.Remove(p);
-            return p;
+            var repoLocations = new Address[]
+            {
+                new Address
+                {
+                    Street = "110th",
+                    Emails = new [] { "E1", "E3", "E2" },
+                    ZipCode = zipCodes[0],
+                    DetailCodes = zipCodes
+                },
+                new GeoLocation
+                {
+                    Street = "110th",
+                    Emails = new [] { "E7", "E4", "E5" },
+                    Latitude = "12",
+                    Longitude = "22",
+                    ZipCode = zipCodes[0],
+                    DetailCodes = zipCodes,
+                    Area = zipCodes[2]
+                },
+            };
+
+            People = new List<Person>
+            {
+                new Person
+                {
+                    Id = 1, Name = "Kate", Age = 5,
+                    Taxes = new [] { 7, 5, 9 },
+                    HomeLocation = new Address{ ZipCode = zipCodes[1], Street = "110th" },
+                    RepoLocations = repoLocations,
+                    Order = new OrderInfo
+                    {
+                        BillLocation = repoLocations[0]
+                    }
+                },
+                new Person
+                {
+                    Id = 2, Name = "Lewis", Age = 6 ,
+                    Taxes = new [] { 1, 5, 2 },
+                    HomeLocation = new GeoLocation{ ZipCode = zipCodes[1], Street = "110th", Latitude = "12.211", Longitude ="231.131" },
+                    RepoLocations = repoLocations,
+                    Order = new OrderInfo
+                    {
+                        BillLocation = new Address{ ZipCode = zipCodes[0], Street = "110th" }
+                    }
+                },
+                new Person
+                {
+                    Id = 3, Name = "Carlos", Age = 7,
+                    HomeLocation = new Address{ ZipCode = zipCodes[2], Street = "110th" },
+                    Home = new Address{ ZipCode = zipCodes[0], Street = "110th" },
+                    Order = new Orders{ Zip = new Address{ ZipCode = zipCodes[0], Street = "110th" }},
+                    PreciseLocation = new GeoLocation{Area = zipCodes[2], Latitude = "12", Longitude = "22", Street = "50th", ZipCode = zipCodes[1]}
+                },
+                new Person
+                {
+                    Id = 4, FirstName = "Carlos", LastName = "Park", Age = 7,
+                    Location = new Address{ ZipCode = zipCodes[2], Street = "110th" },
+                    Home = new Address{ ZipCode = zipCodes[0], Street = "110th" },
+                    Order = new Orders
+                    {
+                        Zip = new Address{ ZipCode = zipCodes[0], Street = "110th" },
+                        Order = new Orders{ Zip = new Address{ ZipCode = zipCodes[1], Street = "110th" }}
+                    },
+                    PreciseLocation = new GeoLocation{Area = zipCodes[2], Latitude = "12", Longitude = "22", Street = "50th", ZipCode = zipCodes[1]}
+                },
+                new Person
+                {
+                    Id = 5, FirstName = "Carlos", LastName = "Park", Age = 7, Order = new Orders() {propertybag = propertyBag}
+                }
+            };
         }
     }
 }

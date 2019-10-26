@@ -132,7 +132,11 @@ namespace Microsoft.AspNet.OData.Test.Query.Expressions
             // Assert
             var unaryExpression = (UnaryExpression)((MethodCallExpression)queryable.Expression).Arguments.Single(a => a is UnaryExpression);
             var expressionString = unaryExpression.Operand.ToString();
+#if NETCORE
             Assert.Contains("IsNull = (Convert(Param_1.Customer.Id, Nullable`1) == null)}", expressionString);
+#else
+            Assert.Contains("IsNull = (Convert(Param_1.Customer.Id) == null)}", expressionString);
+#endif
         }
 
         [Fact]
@@ -171,7 +175,10 @@ namespace Microsoft.AspNet.OData.Test.Query.Expressions
             SelectExpandWrapper<QueryOrder> projectedOrder = Expression.Lambda(projection).Compile().DynamicInvoke() as SelectExpandWrapper<QueryOrder>;
             Assert.NotNull(projectedOrder);
             Assert.Null(projectedOrder.Instance);
-            Assert.Null(projectedOrder.Container.ToDictionary(PropertyMapper)["Customer"]);
+
+            SelectExpandWrapper<QueryCustomer> projectCustomer = projectedOrder.Container.ToDictionary(PropertyMapper)["Customer"] as SelectExpandWrapper<QueryCustomer>;
+            Assert.NotNull(projectCustomer);
+            Assert.Null(projectCustomer.Instance);
         }
 
         [Fact]
@@ -277,7 +284,10 @@ namespace Microsoft.AspNet.OData.Test.Query.Expressions
             SelectExpandWrapper<QueryOrder> projectedOrder = Expression.Lambda(projection).Compile().DynamicInvoke() as SelectExpandWrapper<QueryOrder>;
             Assert.NotNull(projectedOrder);
             Assert.Contains("Customer", projectedOrder.Container.ToDictionary(PropertyMapper).Keys);
-            Assert.Null(projectedOrder.Container.ToDictionary(PropertyMapper)["Customer"]);
+
+            SelectExpandWrapper<QueryCustomer> projectCustomer = projectedOrder.Container.ToDictionary(PropertyMapper)["Customer"] as SelectExpandWrapper<QueryCustomer>;
+            Assert.NotNull(projectCustomer);
+            Assert.Null(projectCustomer.Instance);
         }
 
         [Fact]
@@ -1302,102 +1312,108 @@ namespace Microsoft.AspNet.OData.Test.Query.Expressions
         }
         #endregion
 
+        #region CreatePropertyValueExpression
+        [Theory]
+        [InlineData("PrivateOrder")]
+        [InlineData("Orders")]
+        public void CreatePropertyValueExpression_NonDerivedNavigationProperty_ReturnsMemberAccessExpression(string property)
+        {
+            // Arrange
+            Expression source = Expression.Constant(new QueryCustomer());
 
+            IEdmNavigationProperty navProperty = _customer.NavigationProperties().Single(c => c.Name == property);
+            Assert.NotNull(navProperty);
 
-        /*
-                [Fact]
-                public void CreatePropertyValueExpression_NonDerivedProperty_ReturnsMemberAccessExpression()
-                {
-                    Expression customer = Expression.Constant(new Customer());
-                    IEdmNavigationProperty ordersProperty = _model.Customer.NavigationProperties().Single();
+            // Act
+            Expression propertyValue = _binder.CreatePropertyValueExpression(_customer, navProperty, source, null);
 
-                    Expression property = _binder.CreatePropertyValueExpression(_model.Customer, ordersProperty, customer);
+            // Assert
+            Assert.Equal(ExpressionType.MemberAccess, propertyValue.NodeType);
+            Assert.Equal(typeof(QueryCustomer).GetProperty(property), (propertyValue as MemberExpression).Member);
+            Assert.Equal(String.Format("{0}.{1}", source.ToString(), property), propertyValue.ToString());
+        }
 
-                    Assert.Equal(ExpressionType.MemberAccess, property.NodeType);
-                    Assert.Equal(typeof(Customer).GetProperty("Orders"), (property as MemberExpression).Member);
-                }
+        [Theory]
+        [InlineData("SpecialOrder")]
+        [InlineData("SpecialOrders")]
+        public void CreatePropertyValueExpression_DerivedNavigationProperty_ReturnsPropertyAccessExpression(string property)
+        {
+            // Arrange
+            Expression source = Expression.Constant(new QueryCustomer());
 
-                [Fact]
-                public void CreateNamedPropertyExpression_NonDerivedProperty_ReturnsMemberAccessExpression()
-                {
-                    Expression customer = Expression.Constant(new Customer());
-                    IEdmStructuralProperty accountProperty = _model.Customer.StructuralProperties().Single(c => c.Name == "Account");
+            IEdmStructuredType vipCustomer = _model.SchemaElements.OfType<IEdmEntityType>().First(c => c.Name == "QueryVipCustomer");
+            Assert.NotNull(vipCustomer);
 
-                    ODataSelectPath selectPath = new ODataSelectPath(new PropertySegment(accountProperty));
-                    PathSelectItem pathSelectItem = new PathSelectItem(selectPath);
+            IEdmNavigationProperty specialProperty = vipCustomer.DeclaredNavigationProperties().First(c => c.Name == property);
+            Assert.NotNull(specialProperty);
 
-                    NamedPropertyExpression namedProperty = _binder.CreatePropertyNameExpression(customer, _model.Customer, pathSelectItem);
+            // Act
+            Expression propertyValue = _binder.CreatePropertyValueExpression(_customer, specialProperty, source, null);
 
-                    //Assert.Equal(ExpressionType.MemberAccess, property.NodeType);
-                    //Assert.Equal(typeof(Customer).GetProperty("Orders"), (property as MemberExpression).Member);
-                }*/
+            // Assert
+            Assert.Equal(String.Format("({0} As QueryVipCustomer).{1}", source.ToString(), property), propertyValue.ToString());
+        }
 
-        //[Fact]
-        //public void CreatePropertyValueExpression_ThrowsODataException_IfMappingTypeIsNotFoundInModel()
-        //{
-        //    // Arrange
-        //    _model.Model.SetAnnotationValue<ClrTypeAnnotation>(_model.SpecialCustomer, null);
-        //    Expression customer = Expression.Constant(new Customer());
-        //    IEdmNavigationProperty specialOrdersProperty = _model.SpecialCustomer.DeclaredNavigationProperties().Single();
+        [Theory]
+        [InlineData("Level")]
+        [InlineData("Birthday")]
+        [InlineData("Bonus")]
+        public void CreatePropertyValueExpression_DerivedValueProperty_ReturnsPropertyAccessExpression(string property)
+        {
+            // Arrange
+            Expression source = Expression.Constant(new QueryCustomer());
 
-        //    // Act & Assert
-        //    ExceptionAssert.Throws<ODataException>(
-        //        () => _binder.CreatePropertyValueExpression(_model.Customer, specialOrdersProperty, customer),
-        //        "The provided mapping does not contain a resource for the resource type 'NS.SpecialCustomer'.");
-        //}
+            IEdmStructuredType vipCustomer = _model.SchemaElements.OfType<IEdmEntityType>().First(c => c.Name == "QueryVipCustomer");
+            Assert.NotNull(vipCustomer);
 
-        /*
-    [Fact]
-    public void CreatePropertyValueExpression_DerivedProperty_ReturnsPropertyAccessExpression()
-    {
-        Expression customer = Expression.Constant(new Customer());
-        IEdmNavigationProperty specialOrdersProperty = _model.SpecialCustomer.DeclaredNavigationProperties().Single();
+            IEdmStructuralProperty edmProperty = vipCustomer.DeclaredStructuralProperties().First(c => c.Name == property);
+            Assert.NotNull(vipCustomer);
 
-        Expression property = _binder.CreatePropertyValueExpression(_model.Customer, specialOrdersProperty, customer);
+            // Act
+            Expression propertyValue = _binder.CreatePropertyValueExpression(_customer, edmProperty, source, null);
 
-        Assert.Equal(String.Format("({0} As SpecialCustomer).SpecialOrders", customer.ToString()), property.ToString());
-    }
+            // Assert
+#if NETCORE
+            Assert.Equal(String.Format("Convert(({0} As QueryVipCustomer).{1}, Nullable`1)", source.ToString(), property), propertyValue.ToString());
+#else
+            Assert.Equal(String.Format("Convert(({0} As QueryVipCustomer).{1})", source.ToString(), property), propertyValue.ToString());
+#endif
+        }
 
-    [Fact]
-    public void CreatePropertyValueExpressionWithFilter_ReturnsPropertyAccessExpression()
-    {
-        _model.Model.SetAnnotationValue<ClrTypeAnnotation>(_model.Address, new ClrTypeAnnotation(typeof(Microsoft.AspNet.OData.Test.Formatter.Serialization.Models.Address)));
-        Expression customer = Expression.Constant(new Customer());
+        [Theory]
+        [InlineData("Taxes")]
+        [InlineData("VipAddress")]
+        [InlineData("VipAddresses")]
+        public void CreatePropertyValueExpression_DerivedReferenceProperty_ReturnsPropertyAccessExpression(string property)
+        {
+            // Arrange
+            Expression source = Expression.Constant(new QueryCustomer());
 
-        IEdmStructuralProperty homeAddressProperty = _model.Customer.Properties().FirstOrDefault(c => c.Name == "Address") as IEdmStructuralProperty;
-        IEdmStructuralProperty streetProperty = _model.Address.Properties().FirstOrDefault(c => c.Name == "Street") as IEdmStructuralProperty;
+            IEdmStructuredType vipCustomer = _model.SchemaElements.OfType<IEdmEntityType>().First(c => c.Name == "QueryVipCustomer");
+            Assert.NotNull(vipCustomer);
 
-        PathSelectItem selectItem = new PathSelectItem(new ODataSelectPath(new PropertySegment(homeAddressProperty), new PropertySegment(streetProperty)));
+            IEdmStructuralProperty edmProperty = vipCustomer.DeclaredStructuralProperties().First(c => c.Name == property);
+            Assert.NotNull(vipCustomer);
 
-        Expression property = _binder.CreatePropertyValueExpressionWithFilter(_model.Customer, streetProperty, customer, selectItem);
+            // Act
+            Expression propertyValue = _binder.CreatePropertyValueExpression(_customer, edmProperty, source, null);
 
-        Assert.Equal(String.Format("({0} As SpecialCustomer).SpecialOrders", customer.ToString()), property.ToString());
-    }
-
-    //[Fact]
-    //public void CreatePropertyValueExpression_DerivedNonNullableProperty_ReturnsPropertyAccessExpressionCastToNullable()
-    //{
-    //    Expression customer = Expression.Constant(new Customer());
-    //    IEdmStructuralProperty specialCustomerProperty = _model.SpecialCustomer.DeclaredStructuralProperties()
-    //        .Single(s => s.Name == "SpecialCustomerProperty");
-
-    //    Expression property = _binder.CreatePropertyValueExpression(_model.Customer, specialCustomerProperty, customer);
-
-    //    Assert.Equal(
-    //        String.Format("Convert(({0} As SpecialCustomer).SpecialCustomerProperty)", customer.ToString()),
-    //        property.ToString());
-    //}
-    */
+            // Assert
+            Assert.Equal(String.Format("({0} As QueryVipCustomer).{1}", source.ToString(), property), propertyValue.ToString());
+        }
 
         [Fact]
         public void CreatePropertyValueExpression_HandleNullPropagationTrue_AddsNullCheck()
         {
+            // Arrange
             _settings.HandleNullPropagation = HandleNullPropagationOption.True;
-            Expression customer = Expression.Constant(new QueryCustomer());
+            Expression source = Expression.Constant(new QueryCustomer());
             IEdmProperty idProperty = _customer.StructuralProperties().Single(p => p.Name == "Id");
 
-            Expression property = _binder.CreatePropertyValueExpression(_customer, idProperty, customer, null);
+            // Act
+            Expression property = _binder.CreatePropertyValueExpression(_customer, idProperty, source, null);
 
+            // Assert
             // NetFx and NetCore differ in the way Expression is converted to a string.
             Assert.Equal(ExpressionType.Conditional, property.NodeType);
             ConditionalExpression conditionalExpression = property as ConditionalExpression;
@@ -1407,7 +1423,7 @@ namespace Microsoft.AspNet.OData.Test.Query.Expressions
             Assert.Equal(ExpressionType.Convert, conditionalExpression.IfFalse.NodeType);
             UnaryExpression falseUnaryExpression = conditionalExpression.IfFalse as UnaryExpression;
             Assert.NotNull(falseUnaryExpression);
-            Assert.Equal(String.Format("{0}.Id", customer.ToString()), falseUnaryExpression.Operand.ToString());
+            Assert.Equal(String.Format("{0}.Id", source.ToString()), falseUnaryExpression.Operand.ToString());
             Assert.Equal(typeof(int?), falseUnaryExpression.Type);
 
             Assert.Equal(ExpressionType.Constant, conditionalExpression.IfTrue.NodeType);
@@ -1418,7 +1434,7 @@ namespace Microsoft.AspNet.OData.Test.Query.Expressions
             Assert.Equal(ExpressionType.Equal, conditionalExpression.Test.NodeType);
             BinaryExpression binaryExpression = conditionalExpression.Test as BinaryExpression;
             Assert.NotNull(binaryExpression);
-            Assert.Equal(customer.ToString(), binaryExpression.Left.ToString());
+            Assert.Equal(source.ToString(), binaryExpression.Left.ToString());
             Assert.Equal("null", binaryExpression.Right.ToString());
             Assert.Equal(typeof(bool), binaryExpression.Type);
         }
@@ -1426,16 +1442,19 @@ namespace Microsoft.AspNet.OData.Test.Query.Expressions
         [Fact]
         public void CreatePropertyValueExpression_HandleNullPropagationFalse_ConvertsToNullableType()
         {
+            // Arrange
             _settings.HandleNullPropagation = HandleNullPropagationOption.False;
-            Expression customer = Expression.Constant(new QueryCustomer());
-            IEdmProperty idProperty = _customer.StructuralProperties().Single(p => p.Name == "ID");
+            Expression source = Expression.Constant(new QueryCustomer());
+            IEdmProperty idProperty = _customer.StructuralProperties().Single(p => p.Name == "Id");
 
-            Expression property = _binder.CreatePropertyValueExpression(_customer, idProperty, customer, filterClause: null);
+            // Act
+            Expression property = _binder.CreatePropertyValueExpression(_customer, idProperty, source, filterClause: null);
 
+            // Assert
 #if NETCORE
-            Assert.Equal(String.Format("Convert({0}.Id, Nullable`1)", customer.ToString()), property.ToString());
+            Assert.Equal(String.Format("Convert({0}.Id, Nullable`1)", source.ToString()), property.ToString());
 #else
-            Assert.Equal(String.Format("Convert({0}.Id)", customer.ToString()), property.ToString());
+            Assert.Equal(String.Format("Convert({0}.Id)", source.ToString()), property.ToString());
 #endif
             Assert.Equal(typeof(int?), property.Type);
         }
@@ -1625,6 +1644,7 @@ namespace Microsoft.AspNet.OData.Test.Query.Expressions
             var customer = Expression.Lambda(filterInExpand).Compile().DynamicInvoke() as QueryCustomer;
             Assert.Null(customer);
         }
+        #endregion
 
         [Fact]
         public void CreateTypeNameExpression_ReturnsNull_IfTypeHasNoDerivedTypes()
