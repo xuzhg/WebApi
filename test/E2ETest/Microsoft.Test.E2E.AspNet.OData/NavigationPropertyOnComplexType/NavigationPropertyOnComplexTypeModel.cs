@@ -22,6 +22,8 @@ namespace Microsoft.Test.E2E.AspNet.OData.NavigationPropertyOnComplexType
 
         public IList<Address> RepoLocations { get; set; }
 
+        public GeoLocation PreciseLocation { get; set; }
+
         public OrderInfo Order { get; set; }
     }
 
@@ -37,6 +39,8 @@ namespace Microsoft.Test.E2E.AspNet.OData.NavigationPropertyOnComplexType
     public class Address
     {
         public string Street { get; set; }
+
+        public int TaxNo { get; set; }
 
         public IList<string> Emails { get; set; }
 

@@ -14,11 +14,11 @@ using Xunit;
 
 namespace Microsoft.Test.E2E.AspNet.OData.NavigationPropertyOnComplexType
 {
-    public class NavigationPropertyOnComplexType : WebHostTestBase
+    public class SelectImprovementOnComplexTypeTests : WebHostTestBase
     {
         private const string PeopleBaseUrl = "{0}/odata/People";
 
-        public NavigationPropertyOnComplexType(WebHostTestFixture fixture)
+        public SelectImprovementOnComplexTypeTests(WebHostTestFixture fixture)
             : base(fixture)
         {
         }
@@ -32,9 +32,109 @@ namespace Microsoft.Test.E2E.AspNet.OData.NavigationPropertyOnComplexType
             configuration.MapODataServiceRoute("odata", "odata", ModelGenerator.GetConventionalEdmModel());
         }
 
-        private const string expandedLocation = "\"Location\":{\"ZipCode\":{\"Zip\":98030,\"City\":\"Kent\",\"State\":\"Washington\"}}";
-        private const string expandedHome = "\"Home\":{\"ZipCode\":{\"Zip\":98052,\"City\":\"Redmond\",\"State\":\"Washington\"}}";
-        private const string expandedOrder = "\"Order\":{\"Zip\":{\"ZipCode\":{\"Zip\":98052,\"City\":\"Redmond\",\"State\":\"Washington\"}}}";
+        [Theory]
+        [InlineData("HomeLocation/Street,HomeLocation/TaxNo")]
+        [InlineData("HomeLocation($select=Street,TaxNo)")]
+        public void QueryEntityWithSelectSubPrimitivePropertyOnComplexTypeProperty(string select)
+        {
+            // Arrange
+            string requestUri = string.Format(PeopleBaseUrl, BaseAddress) + "(1)?$select=" + select;
+
+            string expects;
+            if (select.Contains("$select="))
+            {
+                expects = "{\"@odata.context\":\"BASE_ADDRESS/odata/$metadata#People(HomeLocation)/$entity\"," +
+                    "\"HomeLocation\":{\"Street\":\"110th\",\"TaxNo\":19}}";
+            }
+            else
+            {
+                expects = "{\"@odata.context\":\"BASE_ADDRESS/odata/$metadata#People(HomeLocation/Street,HomeLocation/TaxNo)/$entity\"," +
+                    "\"HomeLocation\":{\"Street\":\"110th\",\"TaxNo\":19}}";
+            }
+
+            string equals = expects.Replace("BASE_ADDRESS", BaseAddress);
+
+            // Act & Assert
+            ExecuteAndVerifyQueryRequest(requestUri, contains: null, equals: equals);
+        }
+
+        [Theory]
+        [InlineData("HomeLocation/Emails")]
+        [InlineData("HomeLocation($select=Emails)")]
+        public void QueryEntityWithSelectSubCollectionPrimitivePropertyOnComplexTypeProperty(string select)
+        {
+            // Arrange
+            string requestUri = string.Format(PeopleBaseUrl, BaseAddress) + "(1)?$select=" + select;
+
+            string expects;
+            if (select.Contains("$select="))
+            {
+                expects = "{\"@odata.context\":\"BASE_ADDRESS/odata/$metadata#People(HomeLocation)/$entity\"," +
+                    "\"HomeLocation\":{\"Emails\":[\"E1\",\"E3\",\"E2\"]}}";
+            }
+            else
+            {
+                expects = "{\"@odata.context\":\"BASE_ADDRESS/odata/$metadata#People(HomeLocation/Emails)/$entity\"," +
+                    "\"HomeLocation\":{\"Emails\":[\"E1\",\"E3\",\"E2\"]}}";
+            }
+
+            string equals = expects.Replace("BASE_ADDRESS", BaseAddress);
+
+            // Act & Assert
+            ExecuteAndVerifyQueryRequest(requestUri, contains: null, equals: equals);
+        }
+
+        [Theory]
+        [InlineData("Taxes")]
+        [InlineData("Taxes($filter =$it eq 5)")]
+        public void QueryEntityWithSelectCollectionPrimitivePropertyWithFilter(string select)
+        {
+            // Arrange
+            string requestUri = string.Format(PeopleBaseUrl, BaseAddress) + "(1)?$select=" + select;
+            string expects;
+            if (select.Contains("$filter="))
+            {
+                expects = "{\"@odata.context\":\"BASE_ADDRESS/odata/$metadata#People(Taxes)/$entity\"," +
+                    "\"Taxes\":[5]}";
+            }
+            else
+            {
+                expects = "{\"@odata.context\":\"BASE_ADDRESS/odata/$metadata#People(Taxes)/$entity\"," +
+                    "\"Taxes\":[7,5,9]}";
+            }
+
+            string equals = expects.Replace("BASE_ADDRESS", BaseAddress);
+
+            // Act & Assert
+            ExecuteAndVerifyQueryRequest(requestUri, contains: null, equals: equals);
+        }
+
+        [Theory]
+        [InlineData("HomeLocation/Emails($filter=$it eq 'E3')")]
+        [InlineData("HomeLocation($select=Emails($filter=$it eq 'E3'))")]
+        public void QueryEntityWithSelectSubCollectionPrimitivePropertyOnComplexTypePropertyWithFilter(string select)
+        {
+            // Arrange
+            string requestUri = string.Format(PeopleBaseUrl, BaseAddress) + "(1)?$select=" + select;
+
+            string expects;
+            if (select.Contains("$select="))
+            {
+                expects = "{\"@odata.context\":\"BASE_ADDRESS/odata/$metadata#People(HomeLocation)/$entity\"," +
+                    "\"HomeLocation\":{\"Emails\":[\"E3\"]}}";
+            }
+            else
+            {
+                expects = "{\"@odata.context\":\"BASE_ADDRESS/odata/$metadata#People(HomeLocation/Emails)/$entity\"," +
+                    "\"HomeLocation\":{\"Emails\":[\"E3\"]}}";
+            }
+
+            string equals = expects.Replace("BASE_ADDRESS", BaseAddress);
+
+            // Act & Assert
+            ExecuteAndVerifyQueryRequest(requestUri, contains: null, equals: equals);
+        }
+
 
         [Fact]
         public void QueryNavigationPropertyOnComplexTypeProperty()
@@ -224,26 +324,6 @@ namespace Microsoft.Test.E2E.AspNet.OData.NavigationPropertyOnComplexType
         }
 
 
-        [Theory]
-        [InlineData("?$expand=Location/ZipCode", "{\"Zip\":98030,\"City\":\"Kent\",\"State\":\"Washington\"}")]
-        [InlineData("?$expand=Location/ZipCode,Home/ZipCode", expandedLocation + "," + expandedHome)]
-        [InlineData("?$expand=Location/ZipCode,Order/Zip/ZipCode", expandedLocation + "," + expandedOrder)]
-        public async Task NavigationPropertyWithTopLevelResource(string queryOption, string expected)
-        {
-            string queryUrl =
-                string.Format(
-                    PeopleBaseUrl + queryOption,
-                    BaseAddress);
-            HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, queryUrl);
-            request.Headers.Accept.Add(MediaTypeWithQualityHeaderValue.Parse("application/json;odata.metadata=minimal"));
-            HttpClient client = new HttpClient();
-
-            HttpResponseMessage response = await client.SendAsync(request);
-            string result = await response.Content.ReadAsStringAsync();
-
-            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-            Assert.Contains(expected, result);
-        }
 
         [Fact]
         public async Task DeserializingNavigationPropertyOnComplexType()
@@ -278,28 +358,6 @@ namespace Microsoft.Test.E2E.AspNet.OData.NavigationPropertyOnComplexType
             string queryUrl =
                 string.Format(
                     url,
-                    BaseAddress);
-            HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, queryUrl);
-            request.Headers.Accept.Add(MediaTypeWithQualityHeaderValue.Parse("application/json;odata.metadata=minimal"));
-            HttpClient client = new HttpClient();
-
-            HttpResponseMessage response = await client.SendAsync(request);
-            string result = await response.Content.ReadAsStringAsync();
-
-            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-            Assert.Contains(expected, result);
-        }
-
-        [Theory]
-        [InlineData("?$select=Age&$expand=Location/ZipCode,Home/ZipCode", "\"Age\":5," + expandedLocation + "," + expandedHome)]
-        [InlineData("?$select=Location&$expand=Location/ZipCode,Order/Zip/ZipCode", expandedLocation + "," + expandedOrder)]
-        [InlineData("?$select=Location&$expand=Location/ZipCode,Order/Zip/ZipCode($select=State)", expandedLocation + "," + "\"Order\":{\"Zip\":{\"ZipCode\":{\"State\":\"Washington\"}}}")]
-        public async Task SelectAndExpandCombos(string queryOption, string expected)
-        {
-            string resourcePath = PeopleBaseUrl + "(1)";
-            string queryUrl =
-                string.Format(
-                    resourcePath + queryOption,
                     BaseAddress);
             HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, queryUrl);
             request.Headers.Accept.Add(MediaTypeWithQualityHeaderValue.Parse("application/json;odata.metadata=minimal"));

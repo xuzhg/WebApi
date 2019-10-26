@@ -777,7 +777,7 @@ namespace Microsoft.AspNet.OData.Query.Expressions
 
             propertyValue = CreatePropertyValueExpression(structuredType, structuralProperty, source, pathSelectItem.FilterOption);
 
-            // Expression nullCheck = GetNullCheckExpression(structuralProperty, propertyValue, subSelectExpandClause);
+            Expression nullCheck = GetNullCheckExpression(structuralProperty, propertyValue, subSelectExpandClause);
 
             Expression countExpression = CreateTotalCountExpression(propertyValue, pathSelectItem.CountOption);
 
@@ -801,7 +801,7 @@ namespace Microsoft.AspNet.OData.Query.Expressions
             {
                 if (!structuralProperty.Type.IsCollection())
                 {
-                    // propertyExpression.NullCheck = nullCheck;
+                     propertyExpression.NullCheck = nullCheck;
                 }
                 else if (_settings.PageSize.HasValue)
                 {
@@ -895,6 +895,23 @@ namespace Microsoft.AspNet.OData.Query.Expressions
             }
 
             return source;
+        }
+
+        private Expression GetNullCheckExpression(IEdmStructuralProperty propertyToInclude, Expression propertyValue,
+            SelectExpandClause projection)
+        {
+            if (projection == null || propertyToInclude.Type.IsCollection())
+            {
+                return null;
+            }
+
+            if (IsSelectAll(projection) && propertyToInclude.Type.IsComplex())
+            {
+                // for Collections (Primitive, Enum, Complex collection), that's check above.
+                return Expression.Equal(propertyValue, Expression.Constant(null));
+            }
+
+            return null;
         }
 
         private Expression GetNullCheckExpression(IEdmNavigationProperty propertyToExpand, Expression propertyValue,
