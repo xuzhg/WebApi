@@ -35,7 +35,7 @@ namespace Microsoft.Test.E2E.AspNet.OData.NavigationPropertyOnComplexType
         [Theory]
         [InlineData("HomeLocation/Street,HomeLocation/TaxNo")]
         [InlineData("HomeLocation($select=Street,TaxNo)")]
-        public void QueryEntityWithSelectSubPrimitivePropertyOnComplexTypeProperty(string select)
+        public void QueryEntityWithSelectOnSubPrimitivePropertyOfComplexTypeProperty(string select)
         {
             // Arrange
             string requestUri = string.Format(PeopleBaseUrl, BaseAddress) + "(1)?$select=" + select;
@@ -61,7 +61,7 @@ namespace Microsoft.Test.E2E.AspNet.OData.NavigationPropertyOnComplexType
         [Theory]
         [InlineData("HomeLocation/Emails")]
         [InlineData("HomeLocation($select=Emails)")]
-        public void QueryEntityWithSelectSubCollectionPrimitivePropertyOnComplexTypeProperty(string select)
+        public void QueryEntityWithSelectOnSubCollectionPrimitivePropertyOfComplexTypeProperty(string select)
         {
             // Arrange
             string requestUri = string.Format(PeopleBaseUrl, BaseAddress) + "(1)?$select=" + select;
@@ -85,22 +85,50 @@ namespace Microsoft.Test.E2E.AspNet.OData.NavigationPropertyOnComplexType
         }
 
         [Theory]
-        [InlineData("Taxes")]
-        [InlineData("Taxes($filter =$it eq 5)")]
-        public void QueryEntityWithSelectCollectionPrimitivePropertyWithFilter(string select)
+        [InlineData("Taxes", "\"Taxes\":[7,5,9]")]
+        [InlineData("Taxes($filter=$it eq 5)", "\"Taxes\":[5]")]
+        [InlineData("Taxes($filter=$it le 8)", "\"Taxes\":[7,5]")]
+        public void QueryEntityWithSelectOnCollectionPrimitivePropertyWithNestedFilter(string select, string value)
         {
             // Arrange
             string requestUri = string.Format(PeopleBaseUrl, BaseAddress) + "(1)?$select=" + select;
+            string equals = string.Format("{{\"@odata.context\":\"{0}/odata/$metadata#People(Taxes)/$entity\",{1}}}", BaseAddress, value);
+
+            // Act & Assert
+            ExecuteAndVerifyQueryRequest(requestUri, contains: null, equals: equals);
+        }
+
+        [Theory]
+        [InlineData("Taxes($orderby=$it)", "\"Taxes\":[5,7,9]")]
+        [InlineData("Taxes($orderby =$it desc)", "\"Taxes\":[9,7,5]")]
+        public void QueryEntityWithSelectOnCollectionPrimitivePropertyWithNestedOrderby(string select, string value)
+        {
+            // Arrange
+            string requestUri = string.Format(PeopleBaseUrl, BaseAddress) + "(1)?$select=" + select;
+            string equals = string.Format("{{\"@odata.context\":\"{0}/odata/$metadata#People(Taxes)/$entity\",{1}}}", BaseAddress, value);
+
+            // Act & Assert
+            ExecuteAndVerifyQueryRequest(requestUri, contains: null, equals: equals);
+        }
+
+        [Theory]
+        [InlineData("HomeLocation/Emails($filter=$it eq 'E3')")]
+        [InlineData("HomeLocation($select=Emails($filter=$it eq 'E3'))")]
+        public void QueryEntityWithSelectOnSubCollectionPrimitivePropertyOfComplexTypePropertyWithNestedFilter(string select)
+        {
+            // Arrange
+            string requestUri = string.Format(PeopleBaseUrl, BaseAddress) + "(1)?$select=" + select;
+
             string expects;
-            if (select.Contains("$filter="))
+            if (select.Contains("$select="))
             {
-                expects = "{\"@odata.context\":\"BASE_ADDRESS/odata/$metadata#People(Taxes)/$entity\"," +
-                    "\"Taxes\":[5]}";
+                expects = "{\"@odata.context\":\"BASE_ADDRESS/odata/$metadata#People(HomeLocation)/$entity\"," +
+                    "\"HomeLocation\":{\"Emails\":[\"E3\"]}}";
             }
             else
             {
-                expects = "{\"@odata.context\":\"BASE_ADDRESS/odata/$metadata#People(Taxes)/$entity\"," +
-                    "\"Taxes\":[7,5,9]}";
+                expects = "{\"@odata.context\":\"BASE_ADDRESS/odata/$metadata#People(HomeLocation/Emails)/$entity\"," +
+                    "\"HomeLocation\":{\"Emails\":[\"E3\"]}}";
             }
 
             string equals = expects.Replace("BASE_ADDRESS", BaseAddress);
@@ -112,7 +140,7 @@ namespace Microsoft.Test.E2E.AspNet.OData.NavigationPropertyOnComplexType
         [Theory]
         [InlineData("HomeLocation/Emails($filter=$it eq 'E3')")]
         [InlineData("HomeLocation($select=Emails($filter=$it eq 'E3'))")]
-        public void QueryEntityWithSelectSubCollectionPrimitivePropertyOnComplexTypePropertyWithFilter(string select)
+        public void QueryEntityWithSelectOnSubCollectionPrimitivePropertyOfComplexTypePropertyWithNestedFilter2(string select)
         {
             // Arrange
             string requestUri = string.Format(PeopleBaseUrl, BaseAddress) + "(1)?$select=" + select;
@@ -134,7 +162,6 @@ namespace Microsoft.Test.E2E.AspNet.OData.NavigationPropertyOnComplexType
             // Act & Assert
             ExecuteAndVerifyQueryRequest(requestUri, contains: null, equals: equals);
         }
-
 
         [Fact]
         public void QueryNavigationPropertyOnComplexTypeProperty()
