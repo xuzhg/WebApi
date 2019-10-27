@@ -10,8 +10,6 @@ namespace Microsoft.Test.E2E.AspNet.OData.NavigationPropertyOnComplexType
     {
         public List<Person> People { get; private set; }
 
-        public IDictionary<string, object> propertyBag = new Dictionary<string, object>();
-
         public PeopleRepository()
         {
             var zipCodes = new List<ZipCode>
@@ -23,6 +21,7 @@ namespace Microsoft.Test.E2E.AspNet.OData.NavigationPropertyOnComplexType
 
             IDictionary<string, object> propertyBag = new Dictionary<string, object>
             {
+                { "DynamicInt", 9 },
                 {
                     "DynamicAddress",
                     new Address
@@ -64,8 +63,8 @@ namespace Microsoft.Test.E2E.AspNet.OData.NavigationPropertyOnComplexType
                         AreaSize = 101 + e,
                         CountyName = "King" + e
                     }).ToList(),
-                    Latitude = "12",
-                    Longitude = "22",
+                    Latitude = "12.8",
+                    Longitude = "22.9",
                     ZipCode = zipCodes[1],
                     DetailCodes = zipCodes,
                     Area = zipCodes[2]
@@ -94,7 +93,7 @@ namespace Microsoft.Test.E2E.AspNet.OData.NavigationPropertyOnComplexType
                     HomeLocation = repoLocations[0],
                     RepoLocations = repoLocations,
                     PreciseLocation = null, // by design
-                    Order = new OrderInfo
+                    OrderInfo = new OrderInfo
                     {
                         BillLocation = repoLocations[0],
                         SubInfo = null
@@ -109,7 +108,7 @@ namespace Microsoft.Test.E2E.AspNet.OData.NavigationPropertyOnComplexType
                     HomeLocation = new GeoLocation{ ZipCode = zipCodes[1], Street = "110th", Latitude = "12.211", Longitude ="231.131" },
                     RepoLocations = repoLocations,
                     PreciseLocation = null, // by design
-                    Order = new OrderInfo
+                    OrderInfo = new OrderInfo
                     {
                         BillLocation = new Address{ ZipCode = zipCodes[0], Street = "110th" }
                     }
@@ -121,7 +120,7 @@ namespace Microsoft.Test.E2E.AspNet.OData.NavigationPropertyOnComplexType
                     Age = 7,
                     HomeLocation = null, // by design
                     RepoLocations = repoLocations,
-                    Order = new OrderInfo
+                    OrderInfo = new OrderInfo
                     {
                         BillLocation = new Address{ ZipCode = zipCodes[0], Street = "110th" }
                     },
@@ -133,9 +132,9 @@ namespace Microsoft.Test.E2E.AspNet.OData.NavigationPropertyOnComplexType
                     Name = "Jones",
                     Age = 9,
                     HomeLocation = repoLocations[2],
-                    RepoLocations = repoLocations,
+                    RepoLocations = repoLocations.Take(2).ToList(),
                     PreciseLocation = new GeoLocation{Area = zipCodes[2], Latitude = "12", Longitude = "22", Street = "50th", ZipCode = zipCodes[1]},
-                    Order = new OrderInfo
+                    OrderInfo = new OrderInfo
                     {
                         BillLocation = new Address{ ZipCode = zipCodes[0], Street = "110th" },
                         SubInfo = new OrderInfo{ BillLocation = new Address{ ZipCode = zipCodes[1], Street = "110th" }}
@@ -146,12 +145,13 @@ namespace Microsoft.Test.E2E.AspNet.OData.NavigationPropertyOnComplexType
                     Id = 5,
                     Name = "Park",
                     Age = 17,
-                    Order = new OrderInfo()
+                    RepoLocations = repoLocations.Take(1).ToList(),
+                    OrderInfo = new OrderInfo()
                     {
                         propertybag = propertyBag
                     }
                 },
-                new Person
+                new VipPerson
                 {
                     Id = 6,
                     Name = "Sam",
@@ -169,7 +169,8 @@ namespace Microsoft.Test.E2E.AspNet.OData.NavigationPropertyOnComplexType
                         }).ToList(),
                         ZipCode = zipCodes[2],
                         DetailCodes = zipCodes
-                    }
+                    },
+                    Bonus = 99
                 }
             };
         }

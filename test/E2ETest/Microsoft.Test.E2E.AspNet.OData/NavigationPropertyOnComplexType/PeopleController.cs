@@ -80,10 +80,10 @@ namespace Microsoft.Test.E2E.AspNet.OData.NavigationPropertyOnComplexType
         }
 
         [EnableQuery]
-        [ODataRoute("People({id})/Order")]
-        public ITestActionResult GetOrdeFromPerson([FromODataUri]int id)
+        [ODataRoute("People({id})/OrderInfo")]
+        public ITestActionResult GetOrdeInfoFromPerson([FromODataUri]int id)
         {
-            return Ok(_repo.People.FirstOrDefault(p => p.Id == id).Order);
+            return Ok(_repo.People.FirstOrDefault(p => p.Id == id).OrderInfo);
         }
 
         [ODataRoute("People({id})/HomeLocation/ZipCode")]

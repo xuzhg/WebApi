@@ -24,7 +24,12 @@ namespace Microsoft.Test.E2E.AspNet.OData.NavigationPropertyOnComplexType
 
         public GeoLocation PreciseLocation { get; set; }
 
-        public OrderInfo Order { get; set; }
+        public OrderInfo OrderInfo { get; set; }
+    }
+
+    public class VipPerson : Person
+    {
+        public int Bonus { get; set; }
     }
 
     public class Address
