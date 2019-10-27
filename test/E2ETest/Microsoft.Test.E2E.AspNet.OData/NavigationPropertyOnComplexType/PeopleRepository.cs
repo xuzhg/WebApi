@@ -2,6 +2,7 @@
 // Licensed under the MIT License.  See License.txt in the project root for license information.
 
 using System.Collections.Generic;
+using System.Linq;
 
 namespace Microsoft.Test.E2E.AspNet.OData.NavigationPropertyOnComplexType
 {
@@ -43,6 +44,12 @@ namespace Microsoft.Test.E2E.AspNet.OData.NavigationPropertyOnComplexType
                     Street = "110th",
                     TaxNo = 19,
                     Emails = new [] { "E1", "E3", "E2" },
+                    RelatedInfo = new AddressInfo { AreaSize = 101, CountyName = "King" },
+                    AdditionInfos = Enumerable.Range(1, 3).Select(e => new AddressInfo
+                    {
+                        AreaSize = 101 + e,
+                        CountyName = "King" + e
+                    }).ToList(),
                     ZipCode = zipCodes[0],
                     DetailCodes = zipCodes
                 },
@@ -51,6 +58,12 @@ namespace Microsoft.Test.E2E.AspNet.OData.NavigationPropertyOnComplexType
                     Street = "120th",
                     TaxNo = 17,
                     Emails = new [] { "E7", "E4", "E5" },
+                    RelatedInfo = null,
+                    AdditionInfos = Enumerable.Range(1, 3).Select(e => new AddressInfo
+                    {
+                        AreaSize = 101 + e,
+                        CountyName = "King" + e
+                    }).ToList(),
                     Latitude = "12",
                     Longitude = "22",
                     ZipCode = zipCodes[1],
@@ -61,10 +74,13 @@ namespace Microsoft.Test.E2E.AspNet.OData.NavigationPropertyOnComplexType
                 {
                     Street = "130th",
                     TaxNo = 18,
-                    Emails = new [] { "E9", "E6", "E10" },
+                    Emails = new [] { "E9", "E6", "E8" },
+                    RelatedInfo = new AddressInfo { AreaSize = 201, CountyName = "Queue" },
+                    AdditionInfos = new AddressInfo[0],
                     ZipCode = zipCodes[2],
                     DetailCodes = zipCodes
                 },
+
             };
 
             People = new List<Person>
@@ -116,7 +132,7 @@ namespace Microsoft.Test.E2E.AspNet.OData.NavigationPropertyOnComplexType
                     Id = 4,
                     Name = "Jones",
                     Age = 9,
-                    HomeLocation = new Address{ ZipCode = zipCodes[2], Street = "110th" },
+                    HomeLocation = repoLocations[2],
                     RepoLocations = repoLocations,
                     PreciseLocation = new GeoLocation{Area = zipCodes[2], Latitude = "12", Longitude = "22", Street = "50th", ZipCode = zipCodes[1]},
                     Order = new OrderInfo
@@ -133,6 +149,26 @@ namespace Microsoft.Test.E2E.AspNet.OData.NavigationPropertyOnComplexType
                     Order = new OrderInfo()
                     {
                         propertybag = propertyBag
+                    }
+                },
+                new Person
+                {
+                    Id = 6,
+                    Name = "Sam",
+                    Age = 40,
+                    HomeLocation = new Address
+                    {
+                        Street = "130th",
+                        TaxNo = 18,
+                        Emails = new [] { "A9", "A6", "A8" },
+                        RelatedInfo = new AddressInfo { AreaSize = 101, CountyName = "King" },
+                        AdditionInfos = Enumerable.Range(1, 3).Select(e => new AddressInfo
+                        {
+                            AreaSize = 101 + e,
+                            CountyName = "King" + e
+                        }).ToList(),
+                        ZipCode = zipCodes[2],
+                        DetailCodes = zipCodes
                     }
                 }
             };

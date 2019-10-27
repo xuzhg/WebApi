@@ -27,15 +27,6 @@ namespace Microsoft.Test.E2E.AspNet.OData.NavigationPropertyOnComplexType
         public OrderInfo Order { get; set; }
     }
 
-    public class OrderInfo
-    {
-        public Address BillLocation { get; set; }
-
-        public OrderInfo SubInfo { get; set; }
-
-        public IDictionary<string, object> propertybag { get; set; }
-    }
-
     public class Address
     {
         public string Street { get; set; }
@@ -44,9 +35,29 @@ namespace Microsoft.Test.E2E.AspNet.OData.NavigationPropertyOnComplexType
 
         public IList<string> Emails { get; set; }
 
+        public AddressInfo RelatedInfo { get; set; }
+
+        public IList<AddressInfo> AdditionInfos { get; set; }
+
         public ZipCode ZipCode { get; set; }
 
         public IList<ZipCode> DetailCodes { get; set; }
+    }
+
+    public class AddressInfo
+    {
+        public int AreaSize { get; set; }
+
+        public string CountyName { get; set; }
+    }
+
+    public class OrderInfo
+    {
+        public Address BillLocation { get; set; }
+
+        public OrderInfo SubInfo { get; set; }
+
+        public IDictionary<string, object> propertybag { get; set; }
     }
 
     public class ZipCode
