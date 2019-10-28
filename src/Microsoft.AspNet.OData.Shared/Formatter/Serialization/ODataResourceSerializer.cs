@@ -129,7 +129,7 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
                 if (resource != null)
                 {
                     writer.WriteStart(resource);
-                    WriteDeltaComplexProperties(selectExpandNode.SelectedComplexProperties, resourceContext, writer);
+                    WriteDeltaComplexProperties(selectExpandNode, resourceContext, writer);
                     //TODO: Need to add support to write Navigation Links, etc. using Delta Writer
                     //https://github.com/OData/odata.net/issues/155
                     //CLEANUP: merge delta logic with regular logic; requires common base between ODataWriter and ODataDeltaWriter
@@ -142,22 +142,30 @@ namespace Microsoft.AspNet.OData.Formatter.Serialization
             }
         }
 
-        private void WriteDeltaComplexProperties(IEnumerable<IEdmStructuralProperty> complexProperties,
+        private void WriteDeltaComplexProperties(SelectExpandNode selectExpandNode,
             ResourceContext resourceContext, ODataWriter writer)
         {
-            Contract.Assert(complexProperties != null);
             Contract.Assert(resourceContext != null);
             Contract.Assert(writer != null);
+
+            if (selectExpandNode.SelectedComplexes == null)
+            {
+                return;
+            }
+            var complexProperties = selectExpandNode.SelectedComplexes;
 
             if (null != resourceContext.EdmObject && resourceContext.EdmObject.IsDeltaResource())
             {
                 IDelta deltaObject = resourceContext.EdmObject as IDelta;
                 IEnumerable<string> changedProperties = deltaObject.GetChangedPropertyNames();
-                complexProperties = complexProperties.Where(p => changedProperties.Contains(p.Name));
+
+                complexProperties = complexProperties.Where(p => changedProperties.Contains(p.Key.Name)).ToDictionary(a => a.Key, a => a.Value);
             }
 
-            foreach (IEdmStructuralProperty complexProperty in complexProperties)
+            foreach (var selectedComplex in complexProperties)
             {
+                IEdmStructuralProperty complexProperty = selectedComplex.Key;
+
                 ODataNestedResourceInfo nestedResourceInfo = new ODataNestedResourceInfo
                 {
                     IsCollection = complexProperty.Type.IsCollection(),

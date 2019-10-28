@@ -391,7 +391,7 @@ namespace Microsoft.Test.E2E.AspNet.OData.NavigationPropertyOnComplexType
         public void QueryEntityWithSelectOnCollectionPrimitivePropertyOfComplexPropertyWithNestedOrderby(string select)
         {
             // Arrange
-            string requestUri = string.Format(PeopleBaseUrl, BaseAddress) + "(4)?$select=" + select;
+            string requestUri = string.Format(PeopleBaseUrl, BaseAddress) + "(5)?$select=" + select;
 
             string expects;
             if (select.Contains("$select="))
@@ -418,7 +418,7 @@ namespace Microsoft.Test.E2E.AspNet.OData.NavigationPropertyOnComplexType
         public void QueryEntityWithSelectOnCollectionPrimitivePropertyOfComplexPropertyWithNestedTopAndSkip(string select, string value)
         {
             // Arrange
-            string requestUri = string.Format(PeopleBaseUrl, BaseAddress) + "(4)?$select=" + select;
+            string requestUri = string.Format(PeopleBaseUrl, BaseAddress) + "(5)?$select=" + select;
             string equals = string.Format("{{\"@odata.context\":\"{0}/odata/$metadata#People(HomeLocation/Emails)/$entity\",\"HomeLocation\":{{{1}}}}}", BaseAddress, value);
 
             // Act & Assert
@@ -513,16 +513,25 @@ namespace Microsoft.Test.E2E.AspNet.OData.NavigationPropertyOnComplexType
         public void QueryEntitySetWithSelectOnSubPropertyOfComplexTypeProperty(string select)
         {
             // Arrange
-            string requestUri = string.Format(PeopleBaseUrl, BaseAddress) + "?$select=HomeLocation/Street";
+            string requestUri = string.Format(PeopleBaseUrl, BaseAddress) + "?$select=" + select;
 
             string value = "\"value\":[" +
                 "{\"HomeLocation\":{\"Street\":\"110th\"}}," +
                 "{\"HomeLocation\":{\"@odata.type\":\"#Microsoft.Test.E2E.AspNet.OData.NavigationPropertyOnComplexType.GeoLocation\",\"Street\":\"110th\"}}," +
                 "{\"HomeLocation\":{\"Street\":null}}," +
+                "{\"HomeLocation\":{\"@odata.type\":\"#Microsoft.Test.E2E.AspNet.OData.NavigationPropertyOnComplexType.GeoLocation\",\"Street\":\"120th\"}}," +
                 "{\"HomeLocation\":{\"Street\":\"130th\"}}," +
-                "{\"HomeLocation\":{\"Street\":null}}," +
                 "{\"@odata.type\":\"#Microsoft.Test.E2E.AspNet.OData.NavigationPropertyOnComplexType.VipPerson\",\"HomeLocation\":{\"Street\":\"130th\"}}]";
-            string expect = "{\"@odata.context\":\"BASE_ADDRESS/odata/$metadata#People(HomeLocation/Street)\"," + value + "}";
+
+            string expect;
+            if (select.Contains("$select="))
+            {
+                expect = "{\"@odata.context\":\"BASE_ADDRESS/odata/$metadata#People(HomeLocation)\"," + value + "}";
+            }
+            else
+            {
+                expect = "{\"@odata.context\":\"BASE_ADDRESS/odata/$metadata#People(HomeLocation/Street)\"," + value + "}";
+            }
 
             string equals = expect.Replace("BASE_ADDRESS", BaseAddress);
 

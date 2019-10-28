@@ -32,12 +32,8 @@ namespace Microsoft.Test.E2E.AspNet.OData.NavigationPropertyOnComplexType
             configuration.MapODataServiceRoute("odata", "odata", ModelGenerator.GetConventionalEdmModel());
         }
 
-        private const string expandedLocation = "\"Location\":{\"ZipCode\":{\"Zip\":98030,\"City\":\"Kent\",\"State\":\"Washington\"}}";
-        private const string expandedHome = "\"Home\":{\"ZipCode\":{\"Zip\":98052,\"City\":\"Redmond\",\"State\":\"Washington\"}}";
-        private const string expandedOrder = "\"Order\":{\"Zip\":{\"ZipCode\":{\"Zip\":98052,\"City\":\"Redmond\",\"State\":\"Washington\"}}}";
-
         [Fact]
-        public void QueryNavigationPropertyOnComplexTypeProperty()
+        public void QueryNavigationPropertyOnComplexProperty()
         {
             // Arrange : GET ~/People(1)/HomeLocation/ZipCode
             string requestUri = string.Format(PeopleBaseUrl, BaseAddress) + "(1)/HomeLocation/ZipCode";
@@ -95,7 +91,7 @@ namespace Microsoft.Test.E2E.AspNet.OData.NavigationPropertyOnComplexType
         }
 
         [Fact]
-        public void QueryEntityWithExpandOnNavigationPropertyOnComplexTypeProperty()
+        public void QueryEntityWithExpandOnNavigationPropertyOfComplexProperty()
         {
             // Arrange
             string requestUri = string.Format(PeopleBaseUrl, BaseAddress) + "(1)?$expand=HomeLocation/ZipCode";
@@ -105,68 +101,99 @@ namespace Microsoft.Test.E2E.AspNet.OData.NavigationPropertyOnComplexType
                 "\"Name\":\"Kate\"," +
                 "\"Age\":5," +
                 "\"Taxes\":[7,5,9]," +
-                "\"HomeLocation\":{\"Street\":\"110th\",\"Emails\":[\"E1\",\"E3\",\"E2\"],\"ZipCode\":{\"Zip\":98052,\"City\":\"Redmond\",\"State\":\"Washington\"}}," +
-                "\"RepoLocations\":[{\"Stre";
+                "\"HomeLocation\":{\"Street\":\"110th\",\"TaxNo\":19,\"Emails\":[\"E1\",\"E3\",\"E2\"],";
+
+            // Act & Assert
+            string result = ExecuteAndVerifyQueryRequest(requestUri, contains);
+
+            Assert.Contains("}],\"ZipCode\":{\"Zip\":98052,\"City\":\"Redmond\",\"State\":\"Washington\"}},\"RepoLoc", result);
+        }
+
+        [Fact]
+        public void QueryEntityWithExpandOnNavigationPropertyOfComplexTypePropertyAndSelectOnOtherProperty()
+        {
+            // Arrange
+            string requestUri = string.Format(PeopleBaseUrl, BaseAddress) + "(1)?$expand=HomeLocation/ZipCode&$select=Name";
+
+            // Only includes Name, HomeLocation and expand ZipCode on HomeLocation
+            // Be noted: The output should not include "Primitive properties" in "HomeLocation".
+            // The issue is form ODL, it includes an "PathSelectItem (HomeLocation)" in the SelectExpandClause.
+            // See detail at: https://github.com/OData/odata.net/issues/1574
+            string contains = "\"Name\":\"Kate\"," +
+                "\"HomeLocation\":{\"Street\":\"110th\",\"TaxNo\":19,\"Emails\":[\"E1\",\"E3\",\"E2\"]," +
+                "\"RelatedInfo\":{\"AreaSize\":101,\"CountyName\":\"King\"}," +
+                "\"AdditionInfos\":[{\"AreaSize\":102,\"CountyName\":\"King1\"},{\"AreaSize\":103,\"CountyName\":\"King2\"},{\"AreaSize\":104,\"CountyName\":\"King3\"}]," +
+                "\"ZipCode\":{\"Zip\":98052,\"City\":\"Redmond\",\"State\":\"Washington\"}}";
 
             // Act & Assert
             ExecuteAndVerifyQueryRequest(requestUri, contains);
         }
 
         [Fact]
-        public void QueryEntityWithExpandOnNavigationPropertyOnComplexTypePropertyAndSelectOnOtherProperty()
+        public void QueryEntityWithExpandOnNavigationPropertyOfComplexTypePropertyAndSelectOnComplexProperty()
         {
             // Arrange
-            string requestUri = string.Format(PeopleBaseUrl, BaseAddress) + "(1)?$expand=HomeLocation/ZipCode&$select=Name";
+            string requestUri = string.Format(PeopleBaseUrl, BaseAddress) + "(1)?$expand=HomeLocation/ZipCode&$select=HomeLocation/Street";
 
-            // only includes Name, HomeLocation and expand ZipCode on HomeLocation
-            // Be noted: The output should not include "Primitive properties" in "HomeLocation".
-            // The issue is form ODL, it includes an "PathSelectItem (HomeLocation)" in the SelectExpandClause.
-            // See detail at: https://github.com/OData/odata.net/issues/1574
-            string contains = "\"Name\":\"Kate\"," +
-                "\"HomeLocation\":{\"Street\":\"110th\",\"Emails\":[\"E1\",\"E3\",\"E2\"],\"ZipCode\":{\"Zip\":98052,\"City\":\"Redmond\",\"State\":\"Washington\"}}";
+            string expects = "{\"@odata.context\":\"BASE_ADDRESS/odata/$metadata#People(HomeLocation/Street,HomeLocation/ZipCode())/$entity\"," +
+                "\"HomeLocation\":{\"Street\":\"110th\",\"ZipCode\":{\"Zip\":98052,\"City\":\"Redmond\",\"State\":\"Washington\"}}}";
+
+            string equals = expects.Replace("BASE_ADDRESS", BaseAddress);
 
             // Act & Assert
-            ExecuteAndVerifyQueryRequest(requestUri, contains);
+            ExecuteAndVerifyQueryRequest(requestUri, contains: null, equals: equals);
         }
 
         [Theory]
         [InlineData(1)]
         [InlineData(3)]
-        public void QueryEntityWithExpandOnMultipleNavigationPropertiesOnComplexTypeProperty(int key)
+        public void QueryEntityWithExpandOnMultipleNavigationPropertiesOfComplexTypeProperty(int key)
         {
             // Arrange
             string requestUri = string.Format(PeopleBaseUrl, BaseAddress) + "(" + key + ")?$expand=HomeLocation/ZipCode,PreciseLocation/ZipCode&$select=Name";
 
             // only includes Name, HomeLocation, PreciseLocation and expand ZipCode on HomeLocation
-            string contains;
+            string equals;
             if (key == 1)
             {
-                contains = "\"Name\":\"Kate\"," +
-                    "\"HomeLocation\":{\"Street\":\"110th\",\"Emails\":[\"E1\",\"E3\",\"E2\"],\"ZipCode\":{\"Zip\":98052,\"City\":\"Redmond\",\"State\":\"Washington\"}}," +
-                    "\"PreciseLocation\":null";
+                equals = "{\"@odata.context\":\"BASE_ADDRESS/odata/$metadata#People(Name,HomeLocation/ZipCode(),PreciseLocation/ZipCode())/$entity\"," +
+                    "\"Name\":\"Kate\"," +
+                    "\"HomeLocation\":{\"Street\":\"110th\",\"TaxNo\":19,\"Emails\":[\"E1\",\"E3\",\"E2\"],\"RelatedInfo\":{\"AreaSize\":101,\"CountyName\":\"King\"},\"AdditionInfos\":[{\"AreaSize\":102,\"CountyName\":\"King1\"},{\"AreaSize\":103,\"CountyName\":\"King2\"},{\"AreaSize\":104,\"CountyName\":\"King3\"}],\"ZipCode\":{\"Zip\":98052,\"City\":\"Redmond\",\"State\":\"Washington\"}}," +
+                    "\"PreciseLocation\":null}";
             }
             else
             {
-                contains = "\"Name\":\"Carlos\"," +
+
+                equals = "{\"@odata.context\":\"BASE_ADDRESS/odata/$metadata#People(Name,HomeLocation/ZipCode(),PreciseLocation/ZipCode())/$entity\"," +
+                    "\"Name\":\"Carlos\"," +
                     "\"HomeLocation\":null," +
-                    "\"PreciseLocation\":{\"Street\":\"50th\",\"Emails\":[],\"Latitude\":\"12\",\"Longitude\":\"22\",\"ZipCode\":{\"Zip\":35816,\"City\":\"Huntsville\",\"State\":\"Alabama\"}}}";
+                    "\"PreciseLocation\":{" +
+                      "\"Street\":\"50th\"," +
+                      "\"TaxNo\":0,\"Emails\":[],\"Latitude\":\"12\",\"Longitude\":\"22\"," +
+                      "\"RelatedInfo\":null," +
+                      "\"AdditionInfos\":[]," +
+                      "\"ZipCode\":{\"Zip\":35816,\"City\":\"Huntsville\",\"State\":\"Alabama\"}}}";
             }
 
+            equals = equals.Replace("BASE_ADDRESS", BaseAddress);
+
             // Act & Assert
-            ExecuteAndVerifyQueryRequest(requestUri, contains);
+            ExecuteAndVerifyQueryRequest(requestUri, null, equals);
         }
 
         [Fact]
         public void QueryEntityWithExpandOnNavigationPropertiesOnDeepComplexTypeProperty()
         {
             // Arrange
-            string requestUri = string.Format(PeopleBaseUrl, BaseAddress) + "(1)?$expand=Order/BillLocation/ZipCode&$select=Order";
+            string requestUri = string.Format(PeopleBaseUrl, BaseAddress) + "(2)?$expand=OrderInfo/BillLocation/ZipCode&$select=OrderInfo";
 
-            string contains =
-              "\"Order\":{" +
+            string contains = "odata/$metadata#People(OrderInfo,OrderInfo/BillLocation/ZipCode())/$entity\"," +
+              "\"OrderInfo\":{" +
                 "\"BillLocation\":{" +
                   "\"Street\":\"110th\"," +
-                  "\"Emails\":[\"E1\",\"E3\",\"E2\"]," +
+                  "\"TaxNo\":0," +
+                  "\"Emails\":[]," +
+                  "\"RelatedInfo\":null,\"AdditionInfos\":[]," +
                   "\"ZipCode\":{" +
                     "\"Zip\":98052," +
                     "\"City\":\"Redmond\"," +
@@ -181,15 +208,169 @@ namespace Microsoft.Test.E2E.AspNet.OData.NavigationPropertyOnComplexType
         }
 
         [Fact]
-        public void SerializingExpandOnNavigationPropertyOnComplexTypePropertyWithSelectOnComplexProperty()
+        public void QueryEntityWithReferenceOnNavigationPropertiesOfComplexProperty()
         {
             // Arrange
-            string requestUri = string.Format(PeopleBaseUrl, BaseAddress) + "(1)?$expand=Location/ZipCode&$select=Location";
+            string requestUri = string.Format(PeopleBaseUrl, BaseAddress) + "(2)?$expand=HomeLocation/ZipCode/$ref&$select=HomeLocation/Street";
 
-            string expects = "{\"@odata.context\":\"BASE_ADDRESS/odata/$metadata#People(Location,Location/ZipCode())/$entity\"," +
-                "\"Location\":{\"Street\":\"110th\",\"ZipCode\":{\"Zip\":98030,\"City\":\"Kent\",\"State\":\"Washington\"}}}";
+            string contains = "odata/$metadata#People(OrderInfo,OrderInfo/BillLocation/ZipCode())/$entity\"," +
+              "\"OrderInfo\":{" +
+                "\"BillLocation\":{" +
+                  "\"Street\":\"110th\"," +
+                  "\"TaxNo\":0," +
+                  "\"Emails\":[]," +
+                  "\"RelatedInfo\":null,\"AdditionInfos\":[]," +
+                  "\"ZipCode\":{" +
+                    "\"Zip\":98052," +
+                    "\"City\":\"Redmond\"," +
+                    "\"State\":\"Washington\"" +
+                  "}" +
+                "}," +
+                "\"SubInfo\":null" +
+              "}";
 
-            string equals = expects.Replace("BASE_ADDRESS", BaseAddress);
+            // Act & Assert
+            ExecuteAndVerifyQueryRequest(requestUri, contains);
+        }
+
+        [Fact]
+        public void QueryEntityWithReferenceOnCollectionNavigationPropertiesOfComplexProperty()
+        {
+            // Arrange
+            string requestUri = string.Format(PeopleBaseUrl, BaseAddress) + "(2)?$expand=HomeLocation/DetailCodes/$ref&$select=HomeLocation/Street";
+
+            string contains = "odata/$metadata#People(OrderInfo,OrderInfo/BillLocation/ZipCode())/$entity\"," +
+              "\"OrderInfo\":{" +
+                "\"BillLocation\":{" +
+                  "\"Street\":\"110th\"," +
+                  "\"TaxNo\":0," +
+                  "\"Emails\":[]," +
+                  "\"RelatedInfo\":null,\"AdditionInfos\":[]," +
+                  "\"ZipCode\":{" +
+                    "\"Zip\":98052," +
+                    "\"City\":\"Redmond\"," +
+                    "\"State\":\"Washington\"" +
+                  "}" +
+                "}," +
+                "\"SubInfo\":null" +
+              "}";
+
+            // Act & Assert
+            ExecuteAndVerifyQueryRequest(requestUri, contains);
+        }
+
+        [Fact]
+        public void QueryEntityWithReferenceOnNavigationPropertiesOfDeepComplexProperty()
+        {
+            // Arrange
+            string requestUri = string.Format(PeopleBaseUrl, BaseAddress) + "(2)?$expand=OrderInfo/BillLocation/ZipCode/$ref&$select=OrderInfo/BillLocation/Street";
+
+            string contains = "odata/$metadata#People(OrderInfo,OrderInfo/BillLocation/ZipCode())/$entity\"," +
+              "\"OrderInfo\":{" +
+                "\"BillLocation\":{" +
+                  "\"Street\":\"110th\"," +
+                  "\"TaxNo\":0," +
+                  "\"Emails\":[]," +
+                  "\"RelatedInfo\":null,\"AdditionInfos\":[]," +
+                  "\"ZipCode\":{" +
+                    "\"Zip\":98052," +
+                    "\"City\":\"Redmond\"," +
+                    "\"State\":\"Washington\"" +
+                  "}" +
+                "}," +
+                "\"SubInfo\":null" +
+              "}";
+
+            // Act & Assert
+            ExecuteAndVerifyQueryRequest(requestUri, contains);
+        }
+
+        [Fact]
+        public async Task DeserializingNavigationPropertyOnComplexType()
+        {
+            // Arrange
+            string url =  PeopleBaseUrl + "(1)/HomeLocation/ZipCode/$ref";
+            string payload = "{\"Zip\":98038,\"City\":\"Redmond\",\"State\":\"Washington\"}";
+            HttpContent content = new StringContent(payload, Encoding.UTF8, mediaType: "application/json");
+            string queryUrl =
+                string.Format(
+                    url,
+                    BaseAddress);
+            HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, queryUrl);
+            request.Content = content;
+            request.Headers.Accept.Add(MediaTypeWithQualityHeaderValue.Parse("application/json;odata.metadata=minimal"));
+            HttpClient client = new HttpClient();
+
+            // Act
+            HttpResponseMessage response = await client.SendAsync(request);
+            string result = await response.Content.ReadAsStringAsync();
+
+            // Assert
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Contains(payload.TrimStart('{'), result);
+        }
+
+        [Fact]
+        public void QueryComplexWithExpandOnDerivedNavigationProperty()
+        {
+            // Arrange
+            string requestUri = string.Format(PeopleBaseUrl, BaseAddress) + "(4)/HomeLocation?$expand=Microsoft.Test.E2E.AspNet.OData.NavigationPropertyOnComplexType.GeoLocation/Area";
+
+            string contains = "{\"@odata.context\":\"BASE_ADDRESS/odata/$metadata#People(4)/HomeLocation(Microsoft.Test.E2E.AspNet.OData.NavigationPropertyOnComplexType.GeoLocation/Area())\"," +
+                "\"Street\":\"120th\",\"TaxNo\":17,\"Emails\":[\"E7\",\"E4\",\"E5\"],\"Latitude\":\"12.8\",\"Longitude\":\"22.9\",\"Rela";
+
+            contains = contains.Replace("BASE_ADDRESS", BaseAddress);
+
+            // Act & Assert
+            ExecuteAndVerifyQueryRequest(requestUri, contains: contains, equals: null);
+        }
+
+        [Fact]
+        public void QueryComplexWithTypeCastAndExpandOnDerivedNavigationProperty()
+        {
+            // Arrange
+            string requestUri = string.Format(PeopleBaseUrl, BaseAddress) + "(4)/HomeLocation/Microsoft.Test.E2E.AspNet.OData.NavigationPropertyOnComplexType.GeoLocation?$expand=Area";
+
+            string contains = "{\"@odata.context\":\"BASE_ADDRESS/odata/$metadata#People(4)/HomeLocation/Microsoft.Test.E2E.AspNet.OData.NavigationPropertyOnComplexType.GeoLocation(Area())\"," +
+                "\"Street\":\"120th\",\"TaxNo\":17,\"Emails\":[\"E7\",\"E4\",\"E5\"],\"Latitude\":\"12.8\",\"Longitude\":\"22.9\",\"Rela";
+
+            contains = contains.Replace("BASE_ADDRESS", BaseAddress);
+
+            // Act & Assert
+            ExecuteAndVerifyQueryRequest(requestUri, contains: contains, equals: null);
+        }
+
+        [Fact]
+        public void QueryEntityWithExpandOnComplexWithTypeCastAndDerivedNavigationProperty()
+        {
+            // Arrange
+            string requestUri = string.Format(PeopleBaseUrl, BaseAddress) + "(4)?$expand=HomeLocation/Microsoft.Test.E2E.AspNet.OData.NavigationPropertyOnComplexType.GeoLocation/Area";
+
+            string contains = "{\"@odata.context\":\"BASE_ADDRESS/odata/$metadata#People(HomeLocation/Microsoft.Test.E2E.AspNet.OData.NavigationPropertyOnComplexType.GeoLocation/Area())/$entity\"," +
+                "\"Id\":4,\"Name\":\"Jones\",\"Age\":9,";
+
+            contains = contains.Replace("BASE_ADDRESS", BaseAddress);
+
+            // Act & Assert
+            var result = ExecuteAndVerifyQueryRequest(requestUri, contains: contains, equals: null);
+
+            Assert.Contains("\"HomeLocation\":{\"@odata.type\":\"#Microsoft.Test.E2E.AspNet.OData.NavigationPropertyOnComplexType.GeoLocation\",\"Street\":\"12", result);
+        }
+
+        [Fact]
+        public void QueryEntityWithExpandNavigationPropertyOnRecursiveComplexProperty()
+        {
+            // Arrange
+            string requestUri = string.Format(PeopleBaseUrl, BaseAddress) + "(4)?$expand=OrderInfo/SubInfo/BillLocation/ZipCode&$select=OrderInfo/SubInfo/BillLocation/Street";
+
+            string equals = "{\"@odata.context\":\"BASE_ADDRESS/odata/$metadata#People(OrderInfo/SubInfo/BillLocation/Street,OrderInfo/SubInfo/BillLocation/ZipCode())/$entity\"," +
+                "\"OrderInfo\":{" +
+                   "\"SubInfo\":{" +
+                     "\"BillLocation\":{" +
+                        "\"Street\":\"110th\"," +
+                        "\"ZipCode\":{\"Zip\":35816,\"City\":\"Huntsville\",\"State\":\"Alabama\"}}}}}";
+
+            equals = equals.Replace("BASE_ADDRESS", BaseAddress);
 
             // Act & Assert
             ExecuteAndVerifyQueryRequest(requestUri, contains: null, equals: equals);
@@ -221,157 +402,6 @@ namespace Microsoft.Test.E2E.AspNet.OData.NavigationPropertyOnComplexType
             }
 
             return result;
-        }
-
-
-        [Theory]
-        [InlineData("?$expand=Location/ZipCode", "{\"Zip\":98030,\"City\":\"Kent\",\"State\":\"Washington\"}")]
-        [InlineData("?$expand=Location/ZipCode,Home/ZipCode", expandedLocation + "," + expandedHome)]
-        [InlineData("?$expand=Location/ZipCode,Order/Zip/ZipCode", expandedLocation + "," + expandedOrder)]
-        public async Task NavigationPropertyWithTopLevelResource(string queryOption, string expected)
-        {
-            string queryUrl =
-                string.Format(
-                    PeopleBaseUrl + queryOption,
-                    BaseAddress);
-            HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, queryUrl);
-            request.Headers.Accept.Add(MediaTypeWithQualityHeaderValue.Parse("application/json;odata.metadata=minimal"));
-            HttpClient client = new HttpClient();
-
-            HttpResponseMessage response = await client.SendAsync(request);
-            string result = await response.Content.ReadAsStringAsync();
-
-            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-            Assert.Contains(expected, result);
-        }
-
-        [Fact]
-        public async Task DeserializingNavigationPropertyOnComplexType()
-        {
-            string url =  PeopleBaseUrl + "(1)/Location/ZipCode/$ref";
-            string payload = "{\"Zip\":98038,\"City\":\"Redmond\",\"State\":\"Washington\"}";
-            HttpContent content = new StringContent(payload, Encoding.UTF8, mediaType: "application/json");
-            string queryUrl =
-                string.Format(
-                    url,
-                    BaseAddress);
-            HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, queryUrl);
-            request.Content = content;
-            request.Headers.Accept.Add(MediaTypeWithQualityHeaderValue.Parse("application/json;odata.metadata=minimal"));
-            HttpClient client = new HttpClient();
-
-            HttpResponseMessage response = await client.SendAsync(request);
-            string result = await response.Content.ReadAsStringAsync();
-
-            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-            Assert.Contains(payload.TrimStart('{'), result);
-        }
-
-        [Theory]
-        [InlineData("Location?$expand=Microsoft.Test.E2E.AspNet.OData.NavigationPropertyOnComplexType.Address/ZipCode", "\"Street\":\"110th\",\"Latitude\":\"12.211\",\"Longitude\":\"231.131\",\"ZipCode\":{\"Zip\":98030,\"City\":\"Kent\",\"State\":\"Washington\"}}")]
-        [InlineData("Location/Microsoft.Test.E2E.AspNet.OData.NavigationPropertyOnComplexType.Address?$expand=ZipCode", "\"Street\":\"110th\",\"Latitude\":\"12.211\",\"Longitude\":\"231.131\",\"ZipCode\":{\"Zip\":98030,\"City\":\"Kent\",\"State\":\"Washington\"}}")]
-        [InlineData("?$expand=Location/Microsoft.Test.E2E.AspNet.OData.NavigationPropertyOnComplexType.Address/ZipCode", "\"@odata.type\":\"#Microsoft.Test.E2E.AspNet.OData.NavigationPropertyOnComplexType.GeoLocation\",\"ZipCode\":{\"Zip\":98030,\"City\":\"Kent\",\"State\":\"Washington\"}}")]
-        [InlineData("?$expand=Location/ZipCode", "\"@odata.type\":\"#Microsoft.Test.E2E.AspNet.OData.NavigationPropertyOnComplexType.GeoLocation\",\"ZipCode\":{\"Zip\":98030,\"City\":\"Kent\",\"State\":\"Washington\"}}")]
-        public async Task ExpandOnDerivedType(string query, string expected)
-        {
-            string url = PeopleBaseUrl + "(2)/" + query;
-            string queryUrl =
-                string.Format(
-                    url,
-                    BaseAddress);
-            HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, queryUrl);
-            request.Headers.Accept.Add(MediaTypeWithQualityHeaderValue.Parse("application/json;odata.metadata=minimal"));
-            HttpClient client = new HttpClient();
-
-            HttpResponseMessage response = await client.SendAsync(request);
-            string result = await response.Content.ReadAsStringAsync();
-
-            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-            Assert.Contains(expected, result);
-        }
-
-        [Theory]
-        [InlineData("?$select=Age&$expand=Location/ZipCode,Home/ZipCode", "\"Age\":5," + expandedLocation + "," + expandedHome)]
-        [InlineData("?$select=Location&$expand=Location/ZipCode,Order/Zip/ZipCode", expandedLocation + "," + expandedOrder)]
-        [InlineData("?$select=Location&$expand=Location/ZipCode,Order/Zip/ZipCode($select=State)", expandedLocation + "," + "\"Order\":{\"Zip\":{\"ZipCode\":{\"State\":\"Washington\"}}}")]
-        public async Task SelectAndExpandCombos(string queryOption, string expected)
-        {
-            string resourcePath = PeopleBaseUrl + "(1)";
-            string queryUrl =
-                string.Format(
-                    resourcePath + queryOption,
-                    BaseAddress);
-            HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, queryUrl);
-            request.Headers.Accept.Add(MediaTypeWithQualityHeaderValue.Parse("application/json;odata.metadata=minimal"));
-            HttpClient client = new HttpClient();
-
-            HttpResponseMessage response = await client.SendAsync(request);
-            string result = await response.Content.ReadAsStringAsync();
-
-            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-            Assert.Contains(expected, result);
-        }
-
-        [Theory]
-        [InlineData("?$expand=PreciseLocation/Area", "\"Id\":3,\"FirstName\":\"Carlos\",\"LastName\":\"Park\",\"Age\":7,\"Location\":{\"Street\":\"110th\"},\"Home\":{\"Street\":\"110th\"},\"Order\":{\"Zip\":{\"Street\":\"110th\"},\"Order\":null},\"PreciseLocation\":{\"Area\":{\"Zip\":98004,\"City\":\"Bellevue\",\"State\":\"Washington\"}}}")]
-        [InlineData("?$expand=PreciseLocation/ZipCode", "\"Id\":3,\"FirstName\":\"Carlos\",\"LastName\":\"Park\",\"Age\":7,\"Location\":{\"Street\":\"110th\"},\"Home\":{\"Street\":\"110th\"},\"Order\":{\"Zip\":{\"Street\":\"110th\"},\"Order\":null},\"PreciseLocation\":{\"ZipCode\":{\"Zip\":98030,\"City\":\"Kent\",\"State\":\"Washington\"}}}")]
-        public async Task ExpandOnDeclaredAndInheritedProperties(string queryOption, string expected)
-        {
-            string resourcePath = PeopleBaseUrl + "(3)";
-            string queryUrl =
-                string.Format(
-                    resourcePath + queryOption,
-                    BaseAddress);
-            HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, queryUrl);
-            request.Headers.Accept.Add(MediaTypeWithQualityHeaderValue.Parse("application/json"));
-            HttpClient client = new HttpClient();
-
-            HttpResponseMessage response = await client.SendAsync(request);
-            string result = await response.Content.ReadAsStringAsync();
-
-            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-            Assert.Contains(expected, result);
-        }
-
-        [Theory]
-        [InlineData("?$expand=Order/Zip/ZipCode", "\"Order\":{\"Zip\":{\"ZipCode\":{\"Zip\":98052,\"City\":\"Redmond\",\"State\":\"Washington\"}}}}")]
-        [InlineData("?$expand=Order/Order/Zip/ZipCode", "\"Order\":{\"Order\":{\"Zip\":{\"ZipCode\":{\"Zip\":98030,\"City\":\"Kent\",\"State\":\"Washington\"}}}}}")]
-        public async Task RecursiveExpandOnOrders(string queryOption, string expected)
-        {
-            string resourcePath = PeopleBaseUrl + "(4)";
-            string queryUrl =
-                string.Format(
-                    resourcePath + queryOption,
-                    BaseAddress);
-            HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, queryUrl);
-            request.Headers.Accept.Add(MediaTypeWithQualityHeaderValue.Parse("application/json"));
-            HttpClient client = new HttpClient();
-
-            HttpResponseMessage response = await client.SendAsync(request);
-            string result = await response.Content.ReadAsStringAsync();
-
-            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-            Assert.Contains(expected, result);
-        }
-
-        [Theory]
-        [InlineData("?$select=key", "key\":{\"@odata.type\":\"#Microsoft.Test.E2E.AspNet.OData.NavigationPropertyOnComplexType.ZipCode\",\"Zip\":98030,\"City\":\"Kent\",\"State\":\"Washington\"")]
-        public async Task SelectOnOpenType(string queryOption, string expected)
-        {
-            string resourcePath = PeopleBaseUrl + "(5)/Order";
-            string queryUrl =
-                string.Format(
-                    resourcePath + queryOption,
-                    BaseAddress);
-            HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, queryUrl);
-            request.Headers.Accept.Add(MediaTypeWithQualityHeaderValue.Parse("application/json"));
-            HttpClient client = new HttpClient();
-
-            HttpResponseMessage response = await client.SendAsync(request);
-            string result = await response.Content.ReadAsStringAsync();
-
-            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-            Assert.Contains(expected, result);
         }
     }
 }

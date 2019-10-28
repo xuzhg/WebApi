@@ -131,7 +131,7 @@ namespace Microsoft.Test.E2E.AspNet.OData.NavigationPropertyOnComplexType
                     Id = 4,
                     Name = "Jones",
                     Age = 9,
-                    HomeLocation = repoLocations[2],
+                    HomeLocation = repoLocations[1],
                     RepoLocations = repoLocations.Take(2).ToList(),
                     PreciseLocation = new GeoLocation{Area = zipCodes[2], Latitude = "12", Longitude = "22", Street = "50th", ZipCode = zipCodes[1]},
                     OrderInfo = new OrderInfo
@@ -145,6 +145,7 @@ namespace Microsoft.Test.E2E.AspNet.OData.NavigationPropertyOnComplexType
                     Id = 5,
                     Name = "Park",
                     Age = 17,
+                    HomeLocation = repoLocations[2],
                     RepoLocations = repoLocations.Take(1).ToList(),
                     OrderInfo = new OrderInfo()
                     {
