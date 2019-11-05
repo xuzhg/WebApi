@@ -13,6 +13,7 @@ using Microsoft.AspNet.OData.Interfaces;
 using Microsoft.AspNet.OData.Query;
 using Microsoft.AspNet.OData.Routing;
 using Microsoft.AspNet.OData.Routing.Conventions;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Mvc.ApplicationParts;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
@@ -659,6 +660,120 @@ namespace Microsoft.AspNet.OData.Extensions
                        .AddService(ServiceLifetime.Singleton, sp => routingConventions.ToList().AsEnumerable())
                        .AddService(ServiceLifetime.Singleton, sp => batchHandler));
         }
+
+#if NETCOREAPP3_0
+
+        internal static Action<IContainerBuilder> ConfigureDefaultServices(IEndpointRouteBuilder routeBuilder, Action<IContainerBuilder> configureAction)
+        {
+            return (builder =>
+            {
+                // Add platform-specific services here. Add Configuration first as other services may rely on it.
+                // For assembly resolution, add the and internal (IWebApiAssembliesResolver) where IWebApiAssembliesResolver
+                // is transient and instantiated from ApplicationPartManager by DI.
+                builder.AddService<IWebApiAssembliesResolver, WebApiAssembliesResolver>(ServiceLifetime.Transient);
+                builder.AddService<IODataPathTemplateHandler, DefaultODataPathHandler>(ServiceLifetime.Singleton);
+                builder.AddService<IETagHandler, DefaultODataETagHandler>(ServiceLifetime.Singleton);
+
+                // Access the default query settings and options from the global container.
+             //   builder.AddService(ServiceLifetime.Singleton, sp => routeBuilder.GetDefaultQuerySettings());
+            //    builder.AddService(ServiceLifetime.Singleton, sp => routeBuilder.GetDefaultODataOptions());
+
+                // Add the default webApi services.
+                builder.AddDefaultWebApiServices();
+
+                // Add custom actions.
+                configureAction?.Invoke(builder);
+            });
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="routeBuilder"></param>
+        /// <param name="routeName"></param>
+        /// <param name="routePrefix"></param>
+        /// <param name="model"></param>
+        /// <param name="configureAction"></param>
+        /// <returns></returns>
+        public static IEndpointRouteBuilder MapODataServiceRoute(this IEndpointRouteBuilder routeBuilder, string routeName, string routePrefix,
+            IEdmModel model, Action<IContainerBuilder> configureAction)
+        {
+            if (routeBuilder == null)
+            {
+                throw Error.ArgumentNull("builder");
+            }
+
+            if (routeName == null)
+            {
+                throw Error.ArgumentNull("routeName");
+            }
+
+            // Build and configure the root container.
+            IPerRouteContainer perRouteContainer = routeBuilder.ServiceProvider.GetRequiredService<IPerRouteContainer>();
+            if (perRouteContainer == null)
+            {
+                throw Error.InvalidOperation(SRResources.MissingODataServices, nameof(IPerRouteContainer));
+            }
+
+            // Create an service provider for this route. Add the default services to the custom configuration actions.
+            Action<IContainerBuilder> builderAction = ConfigureDefaultServices(routeBuilder, configureAction);
+            IServiceProvider serviceProvider = perRouteContainer.CreateODataRootContainer(routeName, builderAction);
+
+            // Make sure the MetadataController is registered with the ApplicationPartManager.
+            ApplicationPartManager applicationPartManager = routeBuilder.ServiceProvider.GetRequiredService<ApplicationPartManager>();
+            applicationPartManager.ApplicationParts.Add(new AssemblyPart(typeof(MetadataController).Assembly));
+
+            // Resolve the path handler and set URI resolver to it.
+            IODataPathHandler pathHandler = serviceProvider.GetRequiredService<IODataPathHandler>();
+
+            // If settings is not on local, use the global configuration settings.
+            ODataOptions options = routeBuilder.ServiceProvider.GetRequiredService<ODataOptions>();
+            if (pathHandler != null && pathHandler.UrlKeyDelimiter == null)
+            {
+                pathHandler.UrlKeyDelimiter = options.UrlKeyDelimiter;
+            }
+
+            var dataSources = routeBuilder.DataSources;
+            var odataEndpointDataSource = dataSources.OfType<ODataEndpointDataSource>().FirstOrDefault();
+            if (odataEndpointDataSource == null)
+            {
+                odataEndpointDataSource = routeBuilder.ServiceProvider.GetRequiredService<ODataEndpointDataSource>();
+                routeBuilder.DataSources.Add(odataEndpointDataSource);
+            }
+
+            odataEndpointDataSource.AddRoute(routeName, routePrefix, model);
+
+            return routeBuilder;
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="routeBuilder"></param>
+        /// <param name="routeName"></param>
+        /// <param name="routePrefix"></param>
+        /// <param name="model"></param>
+        /// <returns></returns>
+        public static IEndpointRouteBuilder MapODataServiceRoute(this IEndpointRouteBuilder routeBuilder, string routeName, string routePrefix,
+            IEdmModel model)
+        {
+            return routeBuilder.MapODataServiceRoute(routeName, routePrefix, model, containerBuilder =>
+                containerBuilder.AddService(Microsoft.OData.ServiceLifetime.Singleton, sp => model));
+
+            /*
+            var dataSources = routeBuilder.DataSources;
+            var odataEndpointDataSource = dataSources.OfType<ODataEndpointDataSource>().FirstOrDefault();
+            if (odataEndpointDataSource == null)
+            {
+                odataEndpointDataSource = routeBuilder.ServiceProvider.GetRequiredService<ODataEndpointDataSource>();
+                routeBuilder.DataSources.Add(odataEndpointDataSource);
+            }
+
+            odataEndpointDataSource.AddRoute(routeName, routePrefix, model);
+
+            return routeBuilder;*/
+        }
+#endif
 
         /// <summary>
         /// Enables dependency injection support for HTTP routes.

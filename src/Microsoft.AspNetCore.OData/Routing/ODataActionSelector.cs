@@ -10,19 +10,58 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Abstractions;
 using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
-using Microsoft.AspNetCore.Mvc.Internal;
+#if NETCOREAPP3_0
+    using Microsoft.AspNetCore.Routing.Matching;
+#else
+    using Microsoft.AspNetCore.Mvc.Internal;
+#endif
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Logging;
+using System.Threading.Tasks;
 
 namespace Microsoft.AspNet.OData.Routing
 {
+#if NETCOREAPP3_0
+    /// <summary>
+    /// 
+    /// </summary>
+    public class ODataEndpointSelector : EndpointSelector
+    {
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="httpContext"></param>
+        /// <param name="candidates"></param>
+        /// <returns></returns>
+        public override Task SelectAsync(HttpContext httpContext, CandidateSet candidates)
+        {
+            throw new System.NotImplementedException();
+        }
+    }
+
+#endif
     /// <summary>
     /// An implementation of <see cref="IActionSelector"/> that uses the server's OData routing conventions
     /// to select an action for OData requests.
     /// </summary>
     public class ODataActionSelector : IActionSelector
     {
+#if NETCOREAPP3_0
+        /// <inheritdoc />
+        public ActionDescriptor SelectBestCandidate(RouteContext context, IReadOnlyList<ActionDescriptor> candidates)
+        {
+            return null;
+        }
+
+        /// <inheritdoc />
+        public IReadOnlyList<ActionDescriptor> SelectCandidates(RouteContext context)
+        {
+            return null;
+        }
+
+#else
         private readonly IActionSelector _innerSelector;
+
 
         /// <summary>
         /// Initializes a new instance of the <see cref="ODataActionSelector" /> class.
@@ -166,5 +205,6 @@ namespace Microsoft.AspNet.OData.Routing
 
             public IList<ParameterDescriptor> FilteredParameters { get; private set; }
         }
+#endif
     }
 }

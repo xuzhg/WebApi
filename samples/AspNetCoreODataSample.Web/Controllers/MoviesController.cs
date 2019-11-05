@@ -99,9 +99,18 @@ namespace AspNetCoreODataSample.Web.Controllers
             };
         }
 
-        [EnableQuery]
+        //[EnableQuery]
         public IActionResult Get()
         {
+            AdsApiError error = new AdsApiError
+            {
+                Code = "101",
+                Property = "Sam",
+                Message = "abc"
+            };
+            return new ObjectResult(new[] { error }) { StatusCode = (int?)400 };
+
+            /*
             if (Request.Path.Value.Contains("efcore"))
             {
                 return Ok(_context.Movies);
@@ -109,7 +118,7 @@ namespace AspNetCoreODataSample.Web.Controllers
             else
             {
                 return Ok(_inMemoryMovies);
-            }
+            }*/
         }
 
         [EnableQuery]

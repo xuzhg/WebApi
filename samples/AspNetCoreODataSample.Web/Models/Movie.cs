@@ -20,4 +20,25 @@ namespace AspNetCoreODataSample.Web.Models
 
         public decimal Price { get; set; }
     }
+
+    public class AdsApiError
+    {
+        public string Code
+        {
+            get;
+            set;
+        }
+
+        public string Property
+        {
+            get;
+            set;
+        }
+
+        public string Message
+        {
+            get;
+            set;
+        }
+    }
 }
