@@ -16,6 +16,11 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.AspNetCore.Mvc.Controllers;
 using System.Linq;
+using Microsoft.AspNet.OData.Extensions;
+using Microsoft.AspNetCore.Http.Extensions;
+using Microsoft.AspNet.OData.Interfaces;
+using Microsoft.AspNetCore.Http.Features;
+using Microsoft.OData.UriParser;
 #if NETCOREAPP3_0
 using System;
     using Microsoft.AspNetCore.Routing.Patterns;
@@ -140,6 +145,12 @@ namespace Microsoft.AspNet.OData.Routing
 
             return (context) =>
             {
+                var syncIOFeature = context.Features.Get<IHttpBodyControlFeature>();
+                if (syncIOFeature != null)
+                {
+                    syncIOFeature.AllowSynchronousIO = true;
+                }
+
                 var endpoint = context.GetEndpoint();
                 var dataTokens = endpoint.Metadata.GetMetadata<IDataTokensMetadata>();
 
@@ -149,12 +160,28 @@ namespace Microsoft.AspNet.OData.Routing
                 routeData.Values["controller"] = "Customers";
                 routeData.Values["action"] = "Get";
 
+                Match(context, "odata", routeData.Values, RouteDirection.IncomingRequest);
+
                 IActionDescriptorCollectionProvider provider = context.RequestServices.GetRequiredService<IActionDescriptorCollectionProvider>();
                 IEnumerable<ControllerActionDescriptor> actionDescriptors = provider
                     .ActionDescriptors.Items.OfType<ControllerActionDescriptor>()
                     .Where(c => c.ControllerName == "Customers");
 
-                ActionDescriptor action = actionDescriptors.FirstOrDefault(c => String.Equals(c.ActionName, "Get", StringComparison.OrdinalIgnoreCase));
+                IODataFeature odataFeature = context.ODataFeature();
+                ODataPath path = odataFeature.Path;
+
+                var actions = actionDescriptors.Where(c => String.Equals(c.ActionName, "Get", StringComparison.OrdinalIgnoreCase));
+                ActionDescriptor action;
+                if (path.Segments.Last() is KeySegment)
+                {
+                    action = actions.FirstOrDefault(c => c.Parameters.Any(a => a.Name == "key"));
+                    KeySegment keySegment = path.Segments.Last() as KeySegment;
+                    routeData.Values["key"] = keySegment.Keys.FirstOrDefault().Value;
+                }
+                else
+                {
+                    action = actionDescriptors.FirstOrDefault(c => String.Equals(c.ActionName, "Get", StringComparison.OrdinalIgnoreCase));
+                }
 
                 // Don't close over the ActionDescriptor, that's not valid for pages.
                // var action = endpoint.Metadata.GetMetadata<ActionDescriptor>();
@@ -170,7 +197,47 @@ namespace Microsoft.AspNet.OData.Routing
             };
         }
 
-         private void UpdateEndpoints()
+        internal static bool Match(HttpContext httpContext, string routeName, RouteValueDictionary values, RouteDirection routeDirection)
+        {
+            if (routeDirection == RouteDirection.IncomingRequest)
+            {
+                ODataPath path = null;
+                HttpRequest request = httpContext.Request;
+
+                object oDataPathValue;
+                if (values.TryGetValue(ODataRouteConstants.ODataPath, out oDataPathValue))
+                {
+                    // We need to call Uri.GetLeftPart(), which returns an encoded Url.
+                    // The ODL parser does not like raw values.
+                    Uri requestUri = new Uri(request.GetEncodedUrl());
+                    string requestLeftPart = requestUri.GetLeftPart(UriPartial.Path);
+                    string queryString = request.QueryString.HasValue ? request.QueryString.ToString() : null;
+
+                    path = ODataPathRouteConstraint.GetODataPath(oDataPathValue as string, requestLeftPart, queryString, () => request.CreateRequestContainer(routeName));
+                }
+
+                if (path != null)
+                {
+                    // Set all the properties we need for routing, querying, formatting
+                    IODataFeature odataFeature = httpContext.ODataFeature();
+                    odataFeature.Path = path;
+                    odataFeature.RouteName = routeName;
+
+                    return true;
+                }
+
+                // The request doesn't match this route so dispose the request container.
+                request.DeleteRequestContainer(true);
+                return false;
+            }
+            else
+            {
+                // This constraint only applies to incoming request.
+                return true;
+            }
+        }
+
+        private void UpdateEndpoints()
         {
             lock (Lock)
             {

@@ -272,11 +272,14 @@ namespace Microsoft.AspNet.OData.Formatter
             }
 
             string baseAddress = request.GetUrlHelper().CreateODataLink();
+#if NETCOREAPP3_0
+            baseAddress = "http://localhost";
+#else
             if (baseAddress == null)
             {
                 throw new SerializationException(SRResources.UnableToDetermineBaseUrl);
             }
-
+#endif
             return baseAddress[baseAddress.Length - 1] != '/' ? new Uri(baseAddress + '/') : new Uri(baseAddress);
         }
 

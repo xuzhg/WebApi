@@ -152,11 +152,15 @@ namespace Microsoft.AspNet.OData.Formatter
 
             string metadataLink = internaUrlHelper.CreateODataLink(MetadataSegment.Instance);
 
+#if NETCOREAPP3_0
+            metadataLink = "http://localhost";
+
+#else
             if (metadataLink == null)
             {
                 throw new SerializationException(SRResources.UnableToDetermineMetadataUrl);
             }
-
+#endif
             //Set this variable if the SelectExpandClause is different from the processed clause on the Query options
             SelectExpandClause selectExpandDifferentFromQueryOptions = null;
             if (internalRequest.Context.QueryOptions != null && internalRequest.Context.QueryOptions.SelectExpand != null)

@@ -1,5 +1,6 @@
 ﻿
 using System.Collections.Generic;
+using System.Linq;
 using AspNetCore3xODataSample.Web.Models;
 using Microsoft.AspNet.OData;
 using Microsoft.AspNetCore.Mvc;
@@ -15,10 +16,16 @@ namespace AspNetCore3xODataSample.Web.Controllers
             new Customer{ Id = 3, Order = new Order { Id = 31 }},
         };
 
-       // [EnableQuery]
+        [EnableQuery]
         public IActionResult Get()
         {
             return Ok(_customers);
+        }
+
+        [EnableQuery]
+        public IActionResult Get(int key)
+        {
+            return Ok(_customers.FirstOrDefault(c => c.Id == key));
         }
     }
 }
