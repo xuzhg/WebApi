@@ -111,6 +111,11 @@ namespace Microsoft.AspNet.OData.Query
         public ApplyQueryOption Apply { get; private set; }
 
         /// <summary>
+        /// Gets the <see cref="ComputeQueryOption"/>.
+        /// </summary>
+        public ComputeQueryOption Compute { get; private set; }
+
+        /// <summary>
         /// Gets the <see cref="FilterQueryOption"/>.
         /// </summary>
         public FilterQueryOption Filter { get; private set; }
@@ -184,6 +189,7 @@ namespace Microsoft.AspNet.OData.Query
                  fixedQueryOptionName.Equals("$format", StringComparison.Ordinal) ||
                  fixedQueryOptionName.Equals("$skiptoken", StringComparison.Ordinal) ||
                  fixedQueryOptionName.Equals("$deltatoken", StringComparison.Ordinal) ||
+                 fixedQueryOptionName.Equals("$compute", StringComparison.Ordinal) ||
                  fixedQueryOptionName.Equals("$apply", StringComparison.Ordinal);
         }
 
@@ -334,6 +340,12 @@ namespace Microsoft.AspNet.OData.Query
                 result = Apply.ApplyTo(result, querySettings);
                 InternalRequest.Context.ApplyClause = Apply.ApplyClause;
                 this.Context.ElementClrType = Apply.ResultClrType;
+            }
+
+            // apply $compute to get the computed properties
+            if (IsAvailableODataQueryOption(Compute, AllowedQueryOptions.Compute))
+            {
+                result = Compute.ApplyTo(result, querySettings);
             }
 
             // Construct the actual query and apply them in the following order: filter, orderby, skip, top

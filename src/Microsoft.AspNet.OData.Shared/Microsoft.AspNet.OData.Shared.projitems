@@ -97,6 +97,7 @@
     <Compile Include="$(MSBuildThisFileDirectory)ODataQueryContextExtensions.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Query\CountAttribute.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Query\Expressions\AggregationPropertyContainer.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Query\Expressions\ComputeBinder.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Query\SelectAttribute.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Query\ExpandConfiguration.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Query\QueryOptionSetting.cs" />
@@ -166,6 +167,7 @@
     <Compile Include="$(MSBuildThisFileDirectory)Builder\DynamicPropertyDictionaryAnnotation.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Query\Expressions\AggregationBinder.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Query\ApplyQueryOption.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Query\ComputeQueryOption.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Query\Expressions\DynamicTypeWrapper.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Query\Expressions\ExpressionBinderBase.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)ODataUriFunctions.cs" />
