@@ -227,6 +227,7 @@
     <Compile Include="$(MSBuildThisFileDirectory)Query\Controllers\CustomerControllers.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Query\Controllers\PrimitiveController.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Query\Expressions\AggregationBinderTests.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Query\Expressions\ComputeBinderTests.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Query\Expressions\DataModel.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Query\Expressions\DynamicTypeWrapperTests.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Query\Expressions\ExpressionStringBuilder.cs" />

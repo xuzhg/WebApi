@@ -87,9 +87,14 @@ namespace Microsoft.AspNet.OData.Query
         /// </summary>
         public string RawValue { get; private set; }
 
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="query"></param>
+        /// <returns></returns>
         public IDictionary<string, Expression> GetComputedProperties(IQueryable query)
         {
-
+            return null;
         }
 
         /// <summary>
@@ -145,18 +150,6 @@ namespace Microsoft.AspNet.OData.Query
 
             foreach (var transformation in computeClause.ComputedItems)
             {
-                if (transformation.Kind == TransformationNodeKind.Aggregate || transformation.Kind == TransformationNodeKind.GroupBy)
-                {
-                    var binder = new AggregationBinder(updatedSettings, assembliesResolver, ResultClrType, Context.Model, transformation);
-                    query = binder.Bind(query);
-                    this.ResultClrType = binder.ResultClrType;
-                }
-                else if (transformation.Kind == TransformationNodeKind.Filter)
-                {
-                    var filterTransformation = transformation as FilterTransformationNode;
-                    Expression filter = FilterBinder.Bind(query, filterTransformation.FilterClause, ResultClrType, Context, querySettings);
-                    query = ExpressionHelpers.Where(query, filter, ResultClrType);
-                }
             }
 
             return query;

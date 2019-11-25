@@ -627,11 +627,26 @@ namespace Microsoft.AspNet.OData.Query.Expressions
         /// </summary>
         /// <param name="rangeVariable">The range variable to bind.</param>
         /// <returns>The LINQ <see cref="Expression"/> created.</returns>
+
+
         public virtual Expression BindRangeVariable(RangeVariable rangeVariable)
         {
             ParameterExpression parameter = _lambdaParameters[rangeVariable.Name];
             return ConvertNonStandardPrimitives(parameter);
         }
+
+
+
+
+
+
+
+
+
+
+
+
+
 
         /// <summary>
         /// Binds a <see cref="CollectionPropertyAccessNode"/> to create a LINQ <see cref="Expression"/> that
