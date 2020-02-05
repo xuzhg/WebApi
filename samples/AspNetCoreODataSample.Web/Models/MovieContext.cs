@@ -25,4 +25,14 @@ namespace AspNetCoreODataSample.Web.Models
             base.OnModelCreating(modelBuilder);
         }
     }
+
+    public class SchoolContext : DbContext
+    {
+        public SchoolContext(DbContextOptions<SchoolContext> options)
+            : base(options)
+        {
+        }
+
+        public DbSet<School> Schools { get; set; }
+    }
 }

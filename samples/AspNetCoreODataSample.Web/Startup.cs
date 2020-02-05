@@ -24,6 +24,7 @@ namespace AspNetCoreODataSample.Web
         public void ConfigureServices(IServiceCollection services)
         {
             services.AddDbContext<MovieContext>(opt => opt.UseInMemoryDatabase("MovieList"));
+            services.AddDbContext<SchoolContext>(opt => opt.UseInMemoryDatabase("SchoolsList"));
             services.AddOData();
             services.AddMvc();
         }

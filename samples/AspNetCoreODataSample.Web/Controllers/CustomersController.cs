@@ -1,8 +1,10 @@
 ﻿// Copyright (c) Microsoft Corporation.  All rights reserved.
 // Licensed under the MIT License.  See License.txt in the project root for license information.
 
+using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using AspNetCoreODataSample.Web.Models;
 using Microsoft.AspNet.OData;
 using Microsoft.AspNetCore.Mvc;
@@ -176,6 +178,66 @@ namespace AspNetCoreODataSample.Web.Controllers
         public IActionResult GetFromVipCustomer()
         {
             return Ok(Customers.Where(c => c is VipCustomer));
+        }
+    }
+
+    public class SchoolsController : ODataController
+    {
+        private SchoolContext _context;
+        public SchoolsController(SchoolContext context)
+        {
+            _context = context;
+
+            if (!_context.Schools.Any())
+            {
+                School school = new School
+                {
+                    Id = new Guid("c911b750-ab77-4206-ad60-3d6aab4baec9")
+                };
+
+                _context.Schools.Add(school);
+
+                school = new School
+                {
+                    Id = new Guid("86F762DF-DBA9-4492-BCBD-C48E63DEB8D8")
+                };
+
+                _context.Schools.Add(school);
+                _context.SaveChanges();
+            }
+        }
+
+        [HttpGet]
+        [EnableQuery]
+        public IActionResult Get()
+        {
+            return Ok(_context.Schools);
+        }
+
+        [HttpGet]
+        [EnableQuery]
+        public async Task<IActionResult> GetSchool([FromODataUri] Guid key)
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+
+            var school = await _context.Schools.FindAsync(key);
+
+            if (school == null)
+            {
+                return NotFound();
+            }
+
+            return Ok(school);
+        }
+
+        [HttpGet]
+        [EnableQuery]
+        public IActionResult GetSchools()
+        {
+            return Ok(_context.Schools);
         }
     }
 }

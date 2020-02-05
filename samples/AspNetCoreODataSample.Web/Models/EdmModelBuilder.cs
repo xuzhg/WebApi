@@ -3,6 +3,7 @@
 
 using Microsoft.AspNet.OData.Builder;
 using Microsoft.OData.Edm;
+using System;
 
 namespace AspNetCoreODataSample.Web.Models
 {
@@ -41,7 +42,13 @@ namespace AspNetCoreODataSample.Web.Models
             builder.EntitySet<Customer>("Customers");
             builder.EntitySet<Order>("Orders");
             builder.EntitySet<City>("Cities");
+            builder.EntitySet<School>("Schools");
             return builder.GetEdmModel();
         }
+    }
+
+    public class School
+    {
+        public Guid Id { get; set; }
     }
 }
