@@ -23,5 +23,19 @@ namespace AspNetCore3xODataSample.Web.Models
             return _edmModel;
         }
 
+        public static IEdmModel GetEdmModel2()
+        {
+            var builder = new ODataConventionModelBuilder();
+            builder.EntitySet<Project>("Projects");
+            var projectsConfig = builder.EntityType<Project>();
+
+            var taskUpdateAction = projectsConfig.Action("UpdateProjectTasks");
+            taskUpdateAction.CollectionEntityParameter<ProjectTask>("projectTasks");
+            taskUpdateAction.ReturnsCollectionFromEntitySet<ProjectTask>(
+              "ProjectTasks");
+            builder.EntityType<ProjectTask>().ContainsMany(pt => pt.ProjectTaskAssignments);
+
+            return builder.GetEdmModel();
+        }
     }
 }

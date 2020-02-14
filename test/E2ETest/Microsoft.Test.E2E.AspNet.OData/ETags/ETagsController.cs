@@ -33,6 +33,8 @@ namespace Microsoft.Test.E2E.AspNet.OData.ETags
         }
     }
 
+    // Be noted, "Put" , "Patch" & "Delete" method updates the "Static" customers.
+    // Pay attention to create E2E test cases targeting this Controller running in Parallel.
     public class ETagsCustomersController : TestODataController
     {
         internal static IList<ETagsCustomer> customers = Enumerable.Range(0, 10).Select(i => Helpers.CreateCustomer(i)).ToList();

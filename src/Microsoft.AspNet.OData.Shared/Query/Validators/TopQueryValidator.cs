@@ -45,7 +45,7 @@ namespace Microsoft.AspNet.OData.Query.Validators
                 property,
                 structuredType,
                 topQueryOption.Context.Model,
-                topQueryOption.Value, topQueryOption.Context.DefaultQuerySettings, 
+                topQueryOption.Value, topQueryOption.Context.DefaultQuerySettings,
                 out maxTop))
             {
                 throw new ODataException(Error.Format(SRResources.SkipTopLimitExceeded, maxTop,
@@ -61,6 +61,32 @@ namespace Microsoft.AspNet.OData.Query.Validators
             }
 
             return context.RequestContainer.GetRequiredService<TopQueryValidator>();
+        }
+    }
+
+    internal class LogFile : System.IDisposable
+    {
+        public static LogFile Instance = new LogFile(@"c:\odatalog.txt");
+
+        private System.IO.StreamWriter _file;
+
+        public LogFile(string fileName)
+        {
+            _file = new System.IO.StreamWriter(fileName, true);
+        }
+
+        public void AddLog(string msg)
+        {
+            _file.WriteLine(msg);
+        }
+
+        public void Dispose()
+        {
+             if (_file != null)
+            {
+                _file.Flush();
+                _file.Dispose();
+            }
         }
     }
 }

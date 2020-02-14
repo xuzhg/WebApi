@@ -82,7 +82,7 @@ namespace Microsoft.Test.E2E.AspNet.OData.Singleton
 
             if (company == "Umbrella")
             {
-                Partners.First(e => e.ID == key).Company = UmbrellaController.Umbrella;                
+                Partners.First(e => e.ID == key).Company = UmbrellaController.Umbrella;
             }
             else if (company == "MonstersInc")
             {

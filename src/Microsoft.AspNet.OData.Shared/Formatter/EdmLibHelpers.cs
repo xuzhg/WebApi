@@ -509,6 +509,12 @@ namespace Microsoft.AspNet.OData.Formatter
             maxTop = 0;
             ModelBoundQuerySettings querySettings = GetModelBoundQuerySettings(property, structuredType, edmModel,
                 defaultQuerySettings);
+
+            Query.Validators.LogFile.Instance.AddLog(structuredType.FullTypeName() + ": " +
+                querySettings == null ?
+                    "null setting" :
+                    (querySettings.MaxTop == null ? " null maxTop" : querySettings.MaxTop.Value.ToString()));
+
             if (querySettings != null && top > querySettings.MaxTop)
             {
                 maxTop = querySettings.MaxTop.Value;

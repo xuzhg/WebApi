@@ -15,24 +15,16 @@ namespace Microsoft.Test.E2E.AspNet.OData.Common.Controllers
     public abstract class InMemoryODataController<TEntity, TKey> : TestODataController
         where TEntity : class
     {
-        private static ConcurrentDictionary<Type, ConcurrentDictionary<TKey, TEntity>> repository =
-                   new ConcurrentDictionary<Type, ConcurrentDictionary<TKey, TEntity>>();
-
         private string idPropertyName;
 
         protected InMemoryODataController(string idPropertyName)
         {
             this.idPropertyName = idPropertyName;
-            LocalTable = repository.GetOrAdd(typeof(TEntity), new ConcurrentDictionary<TKey, TEntity>());
+            LocalTable = Repository.GetOrAdd(typeof(TEntity), new ConcurrentDictionary<TKey, TEntity>());
         }
 
-        public static ConcurrentDictionary<Type, ConcurrentDictionary<TKey, TEntity>> Repository
-        {
-            get
-            {
-                return repository;
-            }
-        }
+        public static ConcurrentDictionary<Type, ConcurrentDictionary<TKey, TEntity>> Repository { get; }
+            = new ConcurrentDictionary<Type, ConcurrentDictionary<TKey, TEntity>>();
 
         public IODataPathHandler PathHandler
         {

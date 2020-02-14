@@ -1,8 +1,10 @@
 ﻿// Copyright (c) Microsoft Corporation.  All rights reserved.
 // Licensed under the MIT License.  See License.txt in the project root for license information.
 
+using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using AspNetCore3xODataSample.Web.Models;
 using Microsoft.AspNet.OData;
 using Microsoft.AspNetCore.Mvc;
@@ -10,6 +12,35 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AspNetCore3xODataSample.Web.Controllers
 {
+    public class ProjectsController : ODataController
+    {
+        [HttpPost]
+        public IActionResult UpdateProjectTasks([FromODataUri] string key,
+            [FromBody] ODataActionParameters parameters)
+        {
+            var projectTasks = ((IEnumerable<ProjectTask>)parameters["projectTasks"]).ToList();
+
+            var tasks = new ProjectTask[]
+            {
+                new ProjectTask { Id = "1", ProjectId = "11",
+                    ProjectTaskAssignments = new ProjectTaskAssignment[]
+                    {
+                        new ProjectTaskAssignment { Id = "22", ProjectTaskId = "1" }
+                    }
+                },
+
+                new ProjectTask { Id = "2", ProjectId = "22",
+                    ProjectTaskAssignments = new ProjectTaskAssignment[]
+                    {
+                        new ProjectTaskAssignment { Id = "22", ProjectTaskId = "2" }
+                    }
+                },
+            };
+
+            return Ok(tasks);
+        }
+    }
+
     public class CustomersController : ODataController
     {
         private readonly CustomerOrderContext _context;

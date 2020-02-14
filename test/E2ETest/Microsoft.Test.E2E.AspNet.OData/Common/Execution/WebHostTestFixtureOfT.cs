@@ -5,13 +5,13 @@
 using System;
 using System.Linq;
 using System.Net;
+using System.Reflection;
 using Microsoft.AspNet.OData;
 using Microsoft.AspNet.OData.Extensions;
 using Microsoft.AspNet.OData.Query;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.AspNetCore.Routing;
@@ -24,7 +24,7 @@ using Xunit;
 #else
 using System;
 using System.Linq;
-using System.Net;
+using System.Reflection;
 using System.Threading;
 using System.Web.Http;
 using Microsoft.Owin.Hosting;
@@ -44,10 +44,23 @@ using Xunit;
 //
 // Using both Disable and Max Threads per this discussion: https://github.com/xunit/xunit/issues/276
 //
-[assembly: CollectionBehavior(CollectionBehavior.CollectionPerAssembly, MaxParallelThreads = 1)]
+// [assembly: CollectionBehavior(CollectionBehavior.CollectionPerAssembly, MaxParallelThreads = 1)]
 
 namespace Microsoft.Test.E2E.AspNet.OData.Common.Execution
 {
+    public interface IWebHostTestFixture
+    {
+        /// <summary>
+        /// Gets or sets a value indicating whether error details should be included.
+        /// </summary>
+        bool IncludeErrorDetail { get; set; }
+
+        /// <summary>
+        /// Gets the configuration action.
+        /// </summary>
+        Action<WebRouteConfiguration> ConfigurationAction { get; }
+    }
+
     /// <summary>
     /// The WebHostTestFixture is create a web host to be used for a test.
     /// </summary>
@@ -57,14 +70,12 @@ namespace Microsoft.Test.E2E.AspNet.OData.Common.Execution
     /// each test class has its own web server, as opposed to Collection Fixtures even though
     /// there is one assembly-wide collection used for serialization purposes.
     /// </remarks>
-    public class WebHostTestFixture : IDisposable
+    public class WebHostTestFixture<TTest> : IDisposable, IWebHostTestFixture
     {
         private static readonly string NormalBaseAddressTemplate = "http://{0}:{1}";
-        
+
         private int _port;
         private bool disposedValue = false;
-        private Object thisLock = new Object();
-        private Action<WebRouteConfiguration> _testConfigurationAction = null;
 
 #if NETCORE
         private IWebHost _selfHostServer = null;
@@ -73,16 +84,12 @@ namespace Microsoft.Test.E2E.AspNet.OData.Common.Execution
 #endif
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="WebHostTestFixture"/> class
+        /// Initializes a new instance of the <see cref="WebHostTestFixture{TTest}"/> class
         /// which uses Katana to host a web service.
         /// </summary>
         public WebHostTestFixture()
         {
-            // We need to lazily initialize the fixture because we need the test
-            // configuration method and the fixture doesn't know anything about
-            // the test class in which is used. The first instance of a test class
-            // will initialize the server. This requires that the tests within a class
-            // are serialized.
+            Initialize();
         }
 
         /// <summary>
@@ -91,84 +98,81 @@ namespace Microsoft.Test.E2E.AspNet.OData.Common.Execution
         public string BaseAddress { get; private set; }
 
         /// <summary>
+        /// Gets the configuration action.
+        /// </summary>
+        public Action<WebRouteConfiguration> ConfigurationAction { get; private set; }
+
+        /// <summary>
         /// Gets or sets a value indicating whether error details should be included.
         /// </summary>
         public bool IncludeErrorDetail { get; set; } = true;
 
         /// <summary>
+        /// Get the configuration method
+        /// </summary>
+        /// <returns></returns>
+        private MethodInfo GetConfigurationMethod()
+        {
+            Type testType = typeof(TTest);
+
+            return testType.GetMethod("UpdateConfigure",
+                BindingFlags.NonPublic | BindingFlags.Static,
+                null,
+                new Type[] { typeof(WebRouteConfiguration) },
+                null);
+        }
+
+        /// <summary>
         /// Initialize the fixture.
         /// </summary>
-        /// <param name="testConfigurationAction">The test configuration action.</param>
         /// <returns>true of the server is initialized, false otherwise.</returns>
         /// <remarks>
         /// This is done lazily to allow the update configuration
         /// function to be passed in from the first test class instance.
         /// </remarks>
-        public bool Initialize(Action<WebRouteConfiguration> testConfigurationAction)
+        private void Initialize()
         {
-            SecurityHelper.AddIpListen();
-
-            int attempts = 0;
-            while (attempts++ < 3)
+            MethodInfo configureMethod = GetConfigurationMethod();
+            if (configureMethod != null)
             {
-                try
-                {
-                    if (_selfHostServer == null)
-                    {
-                        lock (thisLock)
-                        {
-                            if (_selfHostServer == null)
-                            {
-#if NETCORE
-                                string serverName = "localhost";
-#else
-                                string serverName = Environment.MachineName;
-#endif
-                                // setup base address
-                                _port = PortArranger.Reserve();
-                                this.BaseAddress = string.Format(NormalBaseAddressTemplate, serverName, _port.ToString());
-
-                                // set up the server.
-                                _testConfigurationAction = testConfigurationAction;
-
-#if NETCORE
-                                _selfHostServer = new WebHostBuilder()
-                                    .UseKestrel(options =>
-                                    {
-                                        options.Listen(IPAddress.Loopback, _port);
-                                    })
-                                    .UseStartup<WebHostTestStartup>()
-                                    .ConfigureServices(services =>
-                                    {
-                                        // Add ourself to the container so WebHostTestStartup
-                                        // can call UpdateConfiguration.
-                                        services.AddSingleton<WebHostTestFixture>(this);
-                                    })
-                                    .ConfigureLogging((hostingContext, logging) =>
-                                    {
-                                        logging.AddDebug();
-                                        logging.SetMinimumLevel(LogLevel.Warning);
-                                    })
-                                    .Build();
-
-                                _selfHostServer.Start();
-#else
-                                _selfHostServer = WebApp.Start(this.BaseAddress, DefaultKatanaConfigure);
-#endif
-                            }
-                        }
-                    }
-
-                    return true;
-                }
-                catch (HttpListenerException)
-                {
-                    // Retry HttpListenerException up to 3 times.
-                    _selfHostServer = null;
-                }
+                ConfigurationAction = (Action<WebRouteConfiguration>)Delegate.CreateDelegate(typeof(Action<WebRouteConfiguration>), configureMethod);
             }
 
-            throw new TimeoutException(string.Format("Unable to start server after {0} attempts", attempts));
+            SecurityHelper.AddIpListen();
+
+#if NETCORE
+            string serverName = "localhost";
+#else
+            string serverName = Environment.MachineName;
+#endif
+            // setup base address
+            _port = PortArranger.Reserve();
+            this.BaseAddress = string.Format(NormalBaseAddressTemplate, serverName, _port.ToString());
+
+#if NETCORE
+            _selfHostServer = new WebHostBuilder()
+                .UseKestrel(options =>
+                {
+                    options.Listen(IPAddress.Loopback, _port);
+                })
+                .UseStartup<WebHostTestStartup>()
+                .ConfigureServices(services =>
+                {
+                    // Add ourself to the container so WebHostTestStartup
+                    // can call UpdateConfiguration.
+                    services.AddSingleton<IWebHostTestFixture>(this);
+                })
+                .ConfigureLogging((hostingContext, logging) =>
+                {
+                    logging.AddDebug();
+                    logging.SetMinimumLevel(LogLevel.Warning);
+                })
+                .Build();
+
+            _selfHostServer.Start();
+#else
+            _selfHostServer = WebApp.Start(this.BaseAddress, DefaultKatanaConfigure);
+#endif
         }
 
         /// <summary>
@@ -193,7 +197,7 @@ namespace Microsoft.Test.E2E.AspNet.OData.Common.Execution
                     {
 #if NETCORE
                         _selfHostServer.StopAsync();
-                        _selfHostServer.WaitForShutdown();
+                        _selfHostServer.WaitForShutdownAsync();
 #endif
                         _selfHostServer.Dispose();
                         _selfHostServer = null;
@@ -258,8 +262,8 @@ namespace Microsoft.Test.E2E.AspNet.OData.Common.Execution
                         try
                         {
                             // Write error by default.
-                            WebHostTestFixture testBase = context.RequestServices.GetService<WebHostTestFixture>();
-                            if (testBase == null || testBase.IncludeErrorDetail)
+                            IWebHostTestFixture fixture = context.RequestServices.GetService<IWebHostTestFixture>();
+                            if (fixture == null || fixture.IncludeErrorDetail)
                             {
                                 context.Response.Clear();
                                 context.Response.StatusCode = 500;
@@ -283,11 +287,14 @@ namespace Microsoft.Test.E2E.AspNet.OData.Common.Execution
 
                     // Apply test configuration.
                     WebRouteConfiguration config = new WebRouteConfiguration(routeBuilder);
-                    WebHostTestFixture testBase = routeBuilder.ServiceProvider.GetRequiredService<WebHostTestFixture>();
-                    testBase?._testConfigurationAction(config);
+                    IWebHostTestFixture fixture = routeBuilder.ServiceProvider.GetRequiredService<IWebHostTestFixture>();
+                    if (fixture != null && fixture.ConfigurationAction != null)
+                    {
+                        fixture.ConfigurationAction(config);
+                    }
 
                     // Apply error details
-                    testBase.IncludeErrorDetail = config.IncludeErrorDetail;
+                    fixture.IncludeErrorDetail = config.IncludeErrorDetail;
 
                     // Apply MvcActions Options.
                     IOptions<MvcOptions> options = routeBuilder.ServiceProvider.GetService<IOptions<MvcOptions>>();
@@ -459,7 +466,10 @@ namespace Microsoft.Test.E2E.AspNet.OData.Common.Execution
             var httpServer = new HttpServer(configuration);
             configuration.SetHttpServer(httpServer);
 
-            _testConfigurationAction(configuration);
+            if (ConfigurationAction != null)
+            {
+                ConfigurationAction(configuration);
+            }
 
             app.UseWebApi(httpServer: httpServer);
         }

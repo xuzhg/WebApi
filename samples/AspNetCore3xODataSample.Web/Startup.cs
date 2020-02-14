@@ -44,7 +44,8 @@ namespace AspNetCore3xODataSample.Web
             {
                 builder.Select().Expand().Filter().OrderBy().MaxTop(100).Count();
 
-                builder.MapODataServiceRoute("odata", "odata", model);
+                //builder.MapODataServiceRoute("odata", "odata", model);
+                builder.MapODataServiceRoute("odata", "odata", EdmModelBuilder.GetEdmModel2());
             });
         }
     }
