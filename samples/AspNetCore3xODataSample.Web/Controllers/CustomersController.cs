@@ -1,10 +1,12 @@
 ﻿// Copyright (c) Microsoft Corporation.  All rights reserved.
 // Licensed under the MIT License.  See License.txt in the project root for license information.
 
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using AspNetCore3xODataSample.Web.Models;
 using Microsoft.AspNet.OData;
+using Microsoft.AspNet.OData.Query;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -25,6 +27,7 @@ namespace AspNetCore3xODataSample.Web.Controllers
                     new Customer
                     {
                         Name = "Jonier",
+                        CreatedDate = new DateTimeOffset(2020, 2, 19, 11, 12, 13, TimeSpan.Zero),
                         HomeAddress = new Address { City = "Redmond", Street = "156 AVE NE"},
                         FavoriteAddresses = new List<Address>
                         {
@@ -37,6 +40,8 @@ namespace AspNetCore3xODataSample.Web.Controllers
                     new Customer
                     {
                         Name = "Sam",
+                        CreatedDate = new DateTimeOffset(1998, 4, 29, 1, 2, 3, TimeSpan.Zero),
+
                         HomeAddress = new Address { City = "Bellevue", Street = "Main St NE"},
                         FavoriteAddresses = new List<Address>
                         {
@@ -49,6 +54,7 @@ namespace AspNetCore3xODataSample.Web.Controllers
                     new Customer
                     {
                         Name = "Peter",
+                        CreatedDate = new DateTimeOffset(1993, 11, 9, 4, 2, 53, TimeSpan.Zero),
                         HomeAddress = new Address {  City = "Hollewye", Street = "Main St NE"},
                         FavoriteAddresses = new List<Address>
                         {
@@ -85,6 +91,32 @@ namespace AspNetCore3xODataSample.Web.Controllers
         public IActionResult Get(int key)
         {
             return Ok(_context.Customers.FirstOrDefault(c => c.Id == key));
+        }
+
+        /*
+         Request: Delete http://localhost:5000/odata/Customers(2)
+         If-Match: W/"MTk5OC0wNC0yOVQwMTowMjowM1o="
+         It works fine.
+         */
+        [HttpDelete]
+        public IActionResult Delete(int key, ODataQueryOptions<Customer> options)
+        {
+            var query = _context.Customers.Where(c => c.Id == key);
+            if (query == null)
+            {
+                return NotFound();
+            }
+
+            if (options.IfMatch != null)
+            {
+                Customer customer = options.IfMatch.ApplyTo(query).FirstOrDefault();
+                if (customer != null)
+                {
+                    return StatusCode(204);
+                }
+            }
+
+            return StatusCode(200);
         }
     }
 }
