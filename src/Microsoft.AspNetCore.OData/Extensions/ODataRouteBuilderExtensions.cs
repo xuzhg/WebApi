@@ -91,10 +91,6 @@ namespace Microsoft.AspNet.OData.Extensions
 
             DefaultQuerySettings defaultQuerySettings = builder.GetDefaultQuerySettings();
             defaultQuerySettings.MaxTop = maxTopValue;
-            //if (!maxTopValue.HasValue || maxTopValue > 0)
-            //{
-            //    ModelBoundQuerySettings.DefaultModelBoundQuerySettings.MaxTop = maxTopValue;
-            //}
 
             return builder;
         }

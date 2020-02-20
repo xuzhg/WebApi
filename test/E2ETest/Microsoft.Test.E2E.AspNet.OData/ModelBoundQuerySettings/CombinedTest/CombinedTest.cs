@@ -47,6 +47,8 @@ namespace Microsoft.Test.E2E.AspNet.OData.ModelBoundQuerySettings.CombinedTest
         [InlineData(ModelBoundOrderBaseUrl + "?$top=4", "top")]
         public async Task DefaultQuerySettings(string url, string error)
         {
+            Microsoft.AspNet.OData.Query.Validators.LogFile.Instance.AddLog($"::DefaultQuerySettings: {url}");
+
             string queryUrl =
                 string.Format(
                     url,
@@ -66,11 +68,11 @@ namespace Microsoft.Test.E2E.AspNet.OData.ModelBoundQuerySettings.CombinedTest
         [InlineData(CustomerBaseUrl, "Orders($count=true)", "count")]
         [InlineData(CustomerBaseUrl, "Orders($filter=Id eq 1)", "filter")]
         [InlineData(CustomerBaseUrl, "Orders($orderby=Id)", "orderby")]
-        [InlineData(CustomerBaseUrl, "Orders($top=3)", "top")]
+        [InlineData(CustomerBaseUrl, "Orders($top=13)", "top")]
         [InlineData(ModelBoundCustomerBaseUrl, "Orders($count=true)", "count")]
         [InlineData(ModelBoundCustomerBaseUrl, "Orders($filter=Id eq 1)", "filter")]
         [InlineData(ModelBoundCustomerBaseUrl, "Orders($orderby=Id)", "orderby")]
-        [InlineData(ModelBoundCustomerBaseUrl, "Orders($top=3)", "top")]
+        [InlineData(ModelBoundCustomerBaseUrl, "Orders($top=23)", "top")]
         public async Task QueryAttributeOnEntityTypeNegative(string entitySetUrl, string expandOption, string error)
         {
             string queryUrl =
@@ -112,9 +114,9 @@ namespace Microsoft.Test.E2E.AspNet.OData.ModelBoundQuerySettings.CombinedTest
 
         [Theory]
         [InlineData(CustomerBaseUrl, "?$expand=Orders($expand=Customers($count=true))", "count")]
-        [InlineData(OrderBaseUrl, "?$expand=Customers2($expand=Order($top=3))", "top")]
+        [InlineData(OrderBaseUrl, "?$expand=Customers2($expand=Order($top=33))", "top")]
         [InlineData(ModelBoundCustomerBaseUrl, "?$expand=Orders($expand=Customers($count=true))", "count")]
-        [InlineData(ModelBoundOrderBaseUrl, "?$expand=Customers2($expand=Order($top=3))", "top")]
+        [InlineData(ModelBoundOrderBaseUrl, "?$expand=Customers2($expand=Order($top=43))", "top")]
         public async Task QuerySettingsOnPropertyNegative(string entitySetUrl, string url, string error)
         {
             string queryUrl =

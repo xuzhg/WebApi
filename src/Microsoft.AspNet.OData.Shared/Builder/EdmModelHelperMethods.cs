@@ -563,6 +563,12 @@ namespace Microsoft.AspNet.OData.Builder
             {
                 IEdmStructuredType structuredType = edmStructuredTypeQuerySetting.Key;
                 ModelBoundQuerySettings querySettings = edmStructuredTypeQuerySetting.Value;
+
+                if (structuredType.FullTypeName() == "Microsoft.Test.E2E.AspNet.OData.ModelBoundQuerySettings.CombinedTest.Order")
+                {
+                    Microsoft.AspNet.OData.Query.Validators.LogFile.Instance.AddLog($"-- SetAnnotationForCombinedTestOrder: {querySettings.ToString()}");
+                }
+
                 model.SetAnnotationValue(structuredType, querySettings);
             }
         }

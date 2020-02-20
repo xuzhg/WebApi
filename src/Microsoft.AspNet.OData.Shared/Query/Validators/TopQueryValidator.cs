@@ -6,6 +6,7 @@ using Microsoft.AspNet.OData.Formatter;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.OData;
 using Microsoft.OData.Edm;
+using System.Text;
 
 namespace Microsoft.AspNet.OData.Query.Validators
 {
@@ -37,6 +38,12 @@ namespace Microsoft.AspNet.OData.Query.Validators
                     AllowedQueryOptions.Top, topQueryOption.Value));
             }
 
+#if NETCORE
+         //   Query.Validators.LogFile.Instance.AddLog("Request: " + topQueryOption.Context.Request.ToString());
+#endif
+
+            //Query.Validators.LogFile.Instance.AddLog(GeneratePath(topQueryOption.Context.Path));
+
             int maxTop;
             IEdmProperty property = topQueryOption.Context.TargetProperty;
             IEdmStructuredType structuredType = topQueryOption.Context.TargetStructuredType;
@@ -53,6 +60,18 @@ namespace Microsoft.AspNet.OData.Query.Validators
             }
         }
 
+        private static string GeneratePath(Routing.ODataPath path)
+        {
+            StringBuilder sb = new StringBuilder("~/");
+            foreach (var segment in path.Segments)
+            {
+                sb.Append(segment.Identifier);
+                sb.Append("/");
+            }
+
+            return sb.ToString();
+        }
+
         internal static TopQueryValidator GetTopQueryValidator(ODataQueryContext context)
         {
             if (context == null || context.RequestContainer == null)
@@ -64,22 +83,38 @@ namespace Microsoft.AspNet.OData.Query.Validators
         }
     }
 
-    internal class LogFile : System.IDisposable
+    /// <summary>
+    /// 
+    /// </summary>
+    public class LogFile : System.IDisposable
     {
+        /// <summary>
+        /// 
+        /// </summary>
         public static LogFile Instance = new LogFile(@"c:\odatalog.txt");
 
         private System.IO.StreamWriter _file;
-
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="fileName"></param>
         public LogFile(string fileName)
         {
             _file = new System.IO.StreamWriter(fileName, true);
         }
-
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="msg"></param>
         public void AddLog(string msg)
         {
             _file.WriteLine(msg);
+            _file.Flush();
         }
 
+        /// <summary>
+        /// 
+        /// </summary>
         public void Dispose()
         {
              if (_file != null)

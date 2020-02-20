@@ -39,18 +39,28 @@ namespace Microsoft.AspNet.OData.Builder.Conventions.Attributes
                 ModelBoundQuerySettings querySettings =
                     edmTypeConfiguration.QueryConfiguration.GetModelBoundQuerySettingsOrDefault();
 
+                if (edmTypeConfiguration.ClrType.FullName == "Microsoft.Test.E2E.AspNet.OData.ModelBoundQuerySettings.CombinedTest.Order")
+                {
+                    Query.Validators.LogFile.Instance.AddLog($" ** PageAttributeOnOrderBefore: {querySettings.ToString()}");
+                }
+
                 if (pageAttribute.MaxTop < 0)
                 {
                     querySettings.MaxTop = null;
                 }
                 else
                 {
-                    querySettings.MaxTop = pageAttribute.MaxTop;   
+                    querySettings.MaxTop = pageAttribute.MaxTop;
                 }
 
                 if (pageAttribute.PageSize > 0)
                 {
                     querySettings.PageSize = pageAttribute.PageSize;
+                }
+
+                if (edmTypeConfiguration.ClrType.FullName == "Microsoft.Test.E2E.AspNet.OData.ModelBoundQuerySettings.CombinedTest.Order")
+                {
+                    Query.Validators.LogFile.Instance.AddLog($" ** PageAttributeOnOrderAfter: {querySettings.ToString()}");
                 }
             }
         }

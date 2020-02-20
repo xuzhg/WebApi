@@ -9,6 +9,7 @@ using Microsoft.AspNet.OData.Common;
 using Microsoft.AspNet.OData.Formatter;
 using Microsoft.AspNet.OData.Query;
 using Microsoft.AspNet.OData.Routing;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.OData.Edm;
 
@@ -145,6 +146,10 @@ namespace Microsoft.AspNet.OData
         /// use in stand-alone scenarios.
         /// </remarks>
         public IServiceProvider RequestContainer { get; internal set; }
+
+#if NETCORE
+      //  internal HttpRequest Request { get; set; }
+#endif
 
         internal IEdmProperty TargetProperty { get; private set; }
 

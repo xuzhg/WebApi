@@ -10,6 +10,14 @@ namespace Microsoft.AspNet.OData.Query
     /// </summary>
     public class DefaultQuerySettings
     {
+        /// <summary>
+        /// 
+        /// </summary>
+        public DefaultQuerySettings()
+        {
+            //Query.Validators.LogFile.Instance.AddLog($"--- New DefaultQuerySettings");
+        }
+
         private int? _maxTop = 0;
 
         /// <summary>
@@ -64,5 +72,14 @@ namespace Microsoft.AspNet.OData.Query
         /// Gets or sets a value indicating whether the service will use skiptoken or not.
         /// </summary>
         public bool EnableSkipToken { get; set; }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <returns></returns>
+        public override string ToString()
+        {
+            return $"DefaultQuerySettings=EnableExpand={EnableExpand}, EnableSelect={EnableSelect}, EnableCount={EnableCount}, MaxTop={MaxTop.Value}, EnableSkipToken ={EnableSkipToken}";
+        }
     }
 }

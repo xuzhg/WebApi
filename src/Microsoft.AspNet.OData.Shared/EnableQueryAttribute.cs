@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.Diagnostics.Contracts;
 using System.Linq;
 using System.Net;
+using System.Runtime.CompilerServices;
 using Microsoft.AspNet.OData.Common;
 using Microsoft.AspNet.OData.Formatter;
 using Microsoft.AspNet.OData.Interfaces;
@@ -528,7 +529,9 @@ namespace Microsoft.AspNet.OData
                 throw Error.InvalidOperation(SRResources.QueryGetModelMustNotReturnNull);
             }
 
-            return new ODataQueryContext(model, elementClrType, path);
+            var context = new ODataQueryContext(model, elementClrType, path);
+
+            return context;
         }
 
         /// <summary>
@@ -562,6 +565,17 @@ namespace Microsoft.AspNet.OData
                     e);
                 return;
             }
+            /*
+            string mesage = "Call EnableQueryAttribute|";
+            if (queryContext.TargetProperty != null)
+            {
+                mesage += $" Property:{queryContext.TargetProperty.Name}-{queryContext.TargetProperty.Type.FullName()}";
+            }
+            if (queryContext.TargetStructuredType != null)
+            {
+                mesage += $" Type: {queryContext.TargetProperty.Name}";
+            }
+            Query.Validators.LogFile.Instance.AddLog(mesage);*/
 
             ModelBoundQuerySettings querySettings = EdmLibHelpers.GetModelBoundQuerySettings(queryContext.TargetProperty,
                 queryContext.TargetStructuredType,
