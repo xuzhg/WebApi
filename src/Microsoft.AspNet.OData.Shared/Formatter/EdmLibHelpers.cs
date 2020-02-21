@@ -506,39 +506,16 @@ namespace Microsoft.AspNet.OData.Formatter
         public static bool IsTopLimitExceeded(IEdmProperty property, IEdmStructuredType structuredType,
             IEdmModel edmModel, int top, DefaultQuerySettings defaultQuerySettings, out int maxTop)
         {
-            Query.Validators.LogFile.Instance.AddLog($"~~~DefaultModelBoundQuerySettings: {ModelBoundQuerySettings.DefaultModelBoundQuerySettings.ToString()}");
-            Query.Validators.LogFile.Instance.AddLog($"{defaultQuerySettings.ToString()}");
-
             maxTop = 0;
             ModelBoundQuerySettings querySettings = GetModelBoundQuerySettings(property, structuredType, edmModel,
                 defaultQuerySettings);
 
-            string propertyName = property != null ? property.Name : " UnknowPropertyName";
-            string typeName = structuredType != null ? structuredType.FullTypeName() : "UnKnowTypeName";
-            string querySetingName = "WithoutQSettings";
-            if (querySettings != null)
-            {
-                querySetingName = "HasQSettings ";
-                if (querySettings.MaxTop != null)
-                {
-                    querySetingName += $" MaxTop={querySettings.MaxTop.Value}";
-                }
-                if (querySettings.PageSize != null)
-                {
-                    querySetingName += $" PageSize={querySettings.PageSize.Value}";
-                }
-            }
-
             if (querySettings != null && top > querySettings.MaxTop)
             {
-                Query.Validators.LogFile.Instance.AddLog($"{propertyName}, {typeName} : Top={top}, {querySetingName}, ==> true");
-
                 maxTop = querySettings.MaxTop.Value;
                 return true;
             }
 
-            Query.Validators.LogFile.Instance.AddLog($"{propertyName}, {typeName} : Top={top}, {querySetingName}, ==> false");
-            Query.Validators.LogFile.Instance.AddLog("\n");
             return false;
         }
 
@@ -1016,32 +993,12 @@ namespace Microsoft.AspNet.OData.Formatter
                 ModelBoundQuerySettings querySettings = edmModel.GetAnnotationValue<ModelBoundQuerySettings>(key);
                 if (querySettings == null)
                 {
-                    if (property != null && (property.Name == "Order" || property.Name == "Orders"))
-                    {
-                        Query.Validators.LogFile.Instance.AddLog($" =>Property {property.Name}: Has non model bound setting.");
-                    }
-
-                    if (stType != null && stType.FullTypeName() == "Microsoft.Test.E2E.AspNet.OData.ModelBoundQuerySettings.CombinedTest.Order")
-                    {
-                        Query.Validators.LogFile.Instance.AddLog($" =>Type Order: Has non model bound setting.");
-                    }
-
                     querySettings = new ModelBoundQuerySettings();
                     if (defaultQuerySettings != null &&
                         (!defaultQuerySettings.MaxTop.HasValue || defaultQuerySettings.MaxTop > 0))
                     {
                         querySettings.MaxTop = defaultQuerySettings.MaxTop;
                     }
-                }
-
-                if (property != null && (property.Name == "Order" || property.Name == "Orders"))
-                {
-                    Query.Validators.LogFile.Instance.AddLog($" =>Property {property.Name}: {querySettings.ToString()}");
-                }
-
-                if (stType != null && stType.FullTypeName() == "Microsoft.Test.E2E.AspNet.OData.ModelBoundQuerySettings.CombinedTest.Order")
-                {
-                    Query.Validators.LogFile.Instance.AddLog($" =>Type Order: {querySettings.ToString()}");
                 }
 
                 return querySettings;

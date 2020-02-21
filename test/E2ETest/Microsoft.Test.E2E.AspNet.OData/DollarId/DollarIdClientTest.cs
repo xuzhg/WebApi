@@ -38,6 +38,7 @@ namespace Microsoft.Test.E2E.AspNet.OData.DollarId
             var clientContext = new Client.Default.Container(new Uri(serviceRoot));
             clientContext.MergeOption = MergeOption.OverwriteChanges;
 
+            // Key value "0" is for DollarIdClientTest.
             var singer = await Task.Factory.FromAsync(clientContext.Singers.BeginExecute(null, null), (asyncResult) =>
             {
                 return clientContext.Singers.EndExecute(asyncResult).Where(s => s.ID == 0).Single();
@@ -82,7 +83,7 @@ namespace Microsoft.Test.E2E.AspNet.OData.DollarId
             Assert.Single(album.Sales);
         }
 
-        // [Fact(Skip = "Used to generate csdl file")]
+        //[Fact(Skip = "Used to generate csdl file")]
         internal void GetMetadata()
         {
             var directory = Directory.GetCurrentDirectory();

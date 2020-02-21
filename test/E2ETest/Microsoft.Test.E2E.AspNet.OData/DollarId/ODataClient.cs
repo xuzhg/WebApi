@@ -492,12 +492,6 @@ namespace Microsoft.Test.E2E.AspNet.OData.DollarId.Client.Default
       </EntityType>
     </Schema>
     <Schema Namespace=""Default"" xmlns=""http://docs.oasis-open.org/odata/ns/edm"">
-      <Action Name=""ResetDataSource"" IsBound=""true"">
-        <Parameter Name=""bindingParameter"" Type=""Collection(Microsoft.Test.E2E.AspNet.OData.DollarId.Singer)"" />
-      </Action>
-      <Action Name=""ResetDataSource"" IsBound=""true"">
-        <Parameter Name=""bindingParameter"" Type=""Collection(Microsoft.Test.E2E.AspNet.OData.DollarId.Album)"" />
-      </Action>
       <EntityContainer Name=""Container"">
         <EntitySet Name=""Singers"" EntityType=""Microsoft.Test.E2E.AspNet.OData.DollarId.Singer"">
           <NavigationPropertyBinding Path=""Albums"" Target=""Albums"" />

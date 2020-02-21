@@ -52,10 +52,10 @@ namespace Microsoft.Test.E2E.AspNet.OData.DollarId
         {
             ODataConventionModelBuilder builder = configuration.CreateConventionModelBuilder();
             var singerConfiguration = builder.EntitySet<Singer>("Singers");
-            singerConfiguration.EntityType.Collection.Action("ResetDataSource");
+           // singerConfiguration.EntityType.Collection.Action("ResetDataSource");
 
             var albumConfiguration = builder.EntitySet<Album>("Albums");
-            albumConfiguration.EntityType.Collection.Action("ResetDataSource");
+          //  albumConfiguration.EntityType.Collection.Action("ResetDataSource");
 
             albumConfiguration.EntityType.Function("GetSingers").ReturnsCollectionFromEntitySet<Singer>("Singers").IsComposable = true;
             builder.Namespace = typeof(Singer).Namespace;

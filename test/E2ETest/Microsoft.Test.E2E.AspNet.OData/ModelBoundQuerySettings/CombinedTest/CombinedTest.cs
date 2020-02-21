@@ -47,8 +47,6 @@ namespace Microsoft.Test.E2E.AspNet.OData.ModelBoundQuerySettings.CombinedTest
         [InlineData(ModelBoundOrderBaseUrl + "?$top=4", "top")]
         public async Task DefaultQuerySettings(string url, string error)
         {
-            Microsoft.AspNet.OData.Query.Validators.LogFile.Instance.AddLog($"::DefaultQuerySettings: {url}");
-
             string queryUrl =
                 string.Format(
                     url,

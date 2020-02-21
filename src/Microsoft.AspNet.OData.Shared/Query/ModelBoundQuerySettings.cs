@@ -18,11 +18,8 @@ namespace Microsoft.AspNet.OData.Query
         private Dictionary<string, bool> _orderByConfigurations = new Dictionary<string, bool>();
         private Dictionary<string, bool> _filterConfigurations = new Dictionary<string, bool>();
 
-        private string Mark;
-
         internal static ModelBoundQuerySettings DefaultModelBoundQuerySettings = new ModelBoundQuerySettings
         {
-            Mark = "Default",
             _maxTop = 0
         };
 
@@ -42,7 +39,6 @@ namespace Microsoft.AspNet.OData.Query
         /// </summary>
         public ModelBoundQuerySettings()
         {
-            Mark = "Unknown";
         }
 
         /// <summary>
@@ -50,8 +46,6 @@ namespace Microsoft.AspNet.OData.Query
         /// </summary>
         public ModelBoundQuerySettings(ModelBoundQuerySettings querySettings)
         {
-            Mark = "Copy";
-
             _maxTop = querySettings.MaxTop;
             PageSize = querySettings.PageSize;
             Countable = querySettings.Countable;
@@ -85,18 +79,7 @@ namespace Microsoft.AspNet.OData.Query
                     throw Error.ArgumentMustBeGreaterThanOrEqualTo("value", value, 1);
                 }
 
-                Query.Validators.LogFile.Instance.AddLog($"$$ Before Setting {Mark} MaxTop: {_maxTop}");
-
                 _maxTop = value;
-
-                if (Mark == "Default")
-                {
-                    Query.Validators.LogFile.Instance.AddLog($"$$ Setting {Mark} MaxTop: {value}");
-                }
-                else
-                {
-                    Query.Validators.LogFile.Instance.AddLog($"$$ Setting {Mark} MaxTop: {value}");
-                }
             }
         }
 

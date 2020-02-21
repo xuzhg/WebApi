@@ -67,7 +67,7 @@ namespace Microsoft.Test.E2E.AspNet.OData.DollarId
             var response = await this.Client.DeleteAsync(string.Format(requestBaseUri + "/$ref?$id={0}/Albums(1)/Sales(2)", this.BaseAddress));
             Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
 
-            //GET Singers(1)/Albums
+            //GET Albums(1)/Sales
             response = await this.Client.GetAsync(requestBaseUri);
             var json = await response.Content.ReadAsObject<JObject>();
             var result = json["value"] as JArray;
@@ -76,7 +76,7 @@ namespace Microsoft.Test.E2E.AspNet.OData.DollarId
             response = await this.Client.DeleteAsync(string.Format(requestBaseUri + "/$ref?$id=../../Albums(1)/Sales(3)", this.BaseAddress));
             Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
 
-            //GET Singers(1)/Albums
+            // GET Albums(1)/Sales
             response = await this.Client.GetAsync(requestBaseUri);
             json = await response.Content.ReadAsObject<JObject>();
             result = json["value"] as JArray;
