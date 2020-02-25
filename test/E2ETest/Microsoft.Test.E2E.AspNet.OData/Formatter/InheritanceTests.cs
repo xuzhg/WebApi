@@ -16,6 +16,7 @@ using Microsoft.Test.E2E.AspNet.OData.Common.Execution;
 using Microsoft.Test.E2E.AspNet.OData.Common.Instancing;
 using Microsoft.Test.E2E.AspNet.OData.Common.Models.Vehicle;
 using Xunit;
+using static Microsoft.EntityFrameworkCore.DbLoggerCategory;
 using ODataPath = Microsoft.AspNet.OData.Routing.ODataPath;
 
 namespace Microsoft.Test.E2E.AspNet.OData.Formatter
@@ -313,12 +314,18 @@ namespace Microsoft.Test.E2E.AspNet.OData.Formatter
             Random rand)
             where T : class
         {
+            Microsoft.AspNet.OData.Query.Validators.LogFile.Instance.AddLog($"{entitySetName} Clear...");
+
             // clear respository
             await this.ClearRepositoryAsync(entitySetName);
+
+            Microsoft.AspNet.OData.Query.Validators.LogFile.Instance.AddLog($"{entitySetName} Post...");
 
             // post new entity to repository
             T baseline = CreateNewEntity<T>(rand);
             var postResponse = await PostNewEntity<T>(baseline, entitySetName);
+
+            Microsoft.AspNet.OData.Query.Validators.LogFile.Instance.AddLog($"{entitySetName} Get...");
 
             // get collection of entities from repository
             var entities = await GetEntities<T>(entitySetName);
@@ -326,9 +333,13 @@ namespace Microsoft.Test.E2E.AspNet.OData.Formatter
             Assert.NotNull(firstVersion);
             AssertExtension.PrimitiveEqual(baseline, firstVersion);
 
+            Microsoft.AspNet.OData.Query.Validators.LogFile.Instance.AddLog($"{entitySetName} Update...");
+
             // update entity and verify if it's saved
             var updateTo = UpdateEntityName(firstVersion, rand);
             var updateResponse = await UpdateEntity<T>(firstVersion, updateTo, entitySetName);
+
+            Microsoft.AspNet.OData.Query.Validators.LogFile.Instance.AddLog($"{entitySetName} Get After Update...");
 
             // retrieve the updated entity
             var entitiesAgain = await GetEntities<T>(entitySetName);
@@ -336,8 +347,12 @@ namespace Microsoft.Test.E2E.AspNet.OData.Formatter
             Assert.NotNull(secondVersion);
             AssertExtension.PrimitiveEqual(updateTo, secondVersion);
 
+            Microsoft.AspNet.OData.Query.Validators.LogFile.Instance.AddLog($"{entitySetName} Delete...");
+
             // delete entity
             var deleteResponse = await DeleteEntityAsync(secondVersion, entitySetName);
+
+            Microsoft.AspNet.OData.Query.Validators.LogFile.Instance.AddLog($"{entitySetName} Get After Delete...");
 
             // ensure that the entity has been deleted
             var entitiesFinal = await GetEntities<T>(entitySetName);
@@ -380,10 +395,14 @@ namespace Microsoft.Test.E2E.AspNet.OData.Formatter
 
         public virtual async Task AddAndRemoveBaseNavigationPropertyInDerivedType()
         {
+            Microsoft.AspNet.OData.Query.Validators.LogFile.Instance.AddLog($"--InheritanceTests_Cars Clear...");
+
             // clear respository
             await this.ClearRepositoryAsync("InheritanceTests_Cars");
 
             Random r = new Random(RandomSeedGenerator.GetRandomSeed());
+
+            Microsoft.AspNet.OData.Query.Validators.LogFile.Instance.AddLog($"--InheritanceTests_Cars BaseTypeNavigationProperty Add...");
 
             // post new entity to repository
             CreatorSettings creatorSettings = new CreatorSettings()
@@ -397,6 +416,9 @@ namespace Microsoft.Test.E2E.AspNet.OData.Formatter
             ctx.AddRelatedObject(car, "BaseTypeNavigationProperty", vehicle);
             await ctx.SaveChangesAsync();
 
+            Microsoft.AspNet.OData.Query.Validators.LogFile.Instance.AddLog($"--InheritanceTests_Cars BaseTypeNavigationProperty Read...");
+
+
             ctx = ReaderClient(new Uri(this.BaseAddress), ODataProtocolVersion.V4);
             var cars = ctx.CreateQuery<Car>("InheritanceTests_Cars");
             var actual = (await cars.ExecuteAsync()).First();
@@ -404,11 +426,15 @@ namespace Microsoft.Test.E2E.AspNet.OData.Formatter
 
             AssertExtension.PrimitiveEqual(vehicle, actual.BaseTypeNavigationProperty[0]);
 
+            Microsoft.AspNet.OData.Query.Validators.LogFile.Instance.AddLog($"--InheritanceTests_Cars BaseTypeNavigationProperty Delete...");
+
             ctx = WriterClient(new Uri(this.BaseAddress), ODataProtocolVersion.V4);
             ctx.AttachTo("InheritanceTests_Cars", actual);
             ctx.AttachTo("InheritanceTests_Vehicles", actual.BaseTypeNavigationProperty[0]);
             ctx.DeleteLink(actual, "BaseTypeNavigationProperty", actual.BaseTypeNavigationProperty[0]);
             await ctx.SaveChangesAsync();
+
+            Microsoft.AspNet.OData.Query.Validators.LogFile.Instance.AddLog($"--InheritanceTests_Cars BaseTypeNavigationProperty Read...");
 
             ctx = ReaderClient(new Uri(this.BaseAddress), ODataProtocolVersion.V4);
             cars = ctx.CreateQuery<Car>("InheritanceTests_Cars");
@@ -417,6 +443,7 @@ namespace Microsoft.Test.E2E.AspNet.OData.Formatter
 
             Assert.Empty(actual.BaseTypeNavigationProperty);
 
+            Microsoft.AspNet.OData.Query.Validators.LogFile.Instance.AddLog($"--InheritanceTests_Cars Clear...");
             await this.ClearRepositoryAsync("InheritanceTests_Cars");
         }
 
@@ -464,10 +491,14 @@ namespace Microsoft.Test.E2E.AspNet.OData.Formatter
 
         public virtual async Task CreateAndDeleteLinkToDerivedNavigationPropertyOnBaseEntitySet()
         {
+            Microsoft.AspNet.OData.Query.Validators.LogFile.Instance.AddLog($"--InheritanceTests_Vehicles Clear...");
+
             // clear respository
             await this.ClearRepositoryAsync("InheritanceTests_Vehicles");
 
             Random r = new Random(RandomSeedGenerator.GetRandomSeed());
+
+            Microsoft.AspNet.OData.Query.Validators.LogFile.Instance.AddLog($"--InheritanceTests_Vehicles InheritanceTests_Vehicles Add...");
 
             // post new entity to repository
             CreatorSettings creatorSettings = new CreatorSettings()
@@ -481,14 +512,20 @@ namespace Microsoft.Test.E2E.AspNet.OData.Formatter
             ctx.AddObject("InheritanceTests_Vehicles", vehicle);
             await ctx.SaveChangesAsync();
 
+            Microsoft.AspNet.OData.Query.Validators.LogFile.Instance.AddLog($"--InheritanceTests_Vehicles SingleNavigationProperty SetLink...");
+
             ctx.SetLink(car, "SingleNavigationProperty", vehicle);
             await ctx.SaveChangesAsync();
+
+            Microsoft.AspNet.OData.Query.Validators.LogFile.Instance.AddLog($"--InheritanceTests_Vehicles SingleNavigationProperty Read...");
 
             ctx = ReaderClient(new Uri(this.BaseAddress), ODataProtocolVersion.V4);
             var cars = (await ctx.CreateQuery<Vehicle>("InheritanceTests_Vehicles").ExecuteAsync()).ToList().OfType<Car>();
             var actual = cars.First();
             await ctx.LoadPropertyAsync(actual, "SingleNavigationProperty");
             AssertExtension.PrimitiveEqual(vehicle, actual.SingleNavigationProperty);
+
+            Microsoft.AspNet.OData.Query.Validators.LogFile.Instance.AddLog($"--InheritanceTests_Vehicles Clear...");
 
             await this.ClearRepositoryAsync("InheritanceTests_Vehicles");
         }

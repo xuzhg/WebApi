@@ -33,30 +33,22 @@ namespace Microsoft.Test.E2E.AspNet.OData.DollarId
         [EnableQuery]
         public ITestActionResult Get()
         {
-            Microsoft.AspNet.OData.Query.Validators.LogFile.Instance.AddLog(this.Request.Path.ToString() + this.Request.QueryString.ToString());
-
             return Ok(Singers);
         }
 
         public ITestActionResult Get(int key)
         {
-            Microsoft.AspNet.OData.Query.Validators.LogFile.Instance.AddLog(this.Request.Path.ToString() + this.Request.QueryString.ToString());
-
             return Ok(Singers.Single(s => s.ID == key));
         }
 
         public ITestActionResult GetAlbumsFromSinger(int key)
         {
-            Microsoft.AspNet.OData.Query.Validators.LogFile.Instance.AddLog(this.Request.Path.ToString() + this.Request.QueryString.ToString());
-
             var singer = Singers.Single(s => s.ID == key);
             return Ok(singer.Albums);
         }
 
         public ITestActionResult DeleteRef(int key, int relatedKey, string navigationProperty)
         {
-            Microsoft.AspNet.OData.Query.Validators.LogFile.Instance.AddLog("Singlers DeleteRef " + this.Request.Path.ToString());
-
             var singer = Singers.Single(s => s.ID == key);
             var album = singer.Albums.Single(a => a.ID == relatedKey);
 
@@ -102,15 +94,11 @@ namespace Microsoft.Test.E2E.AspNet.OData.DollarId
         [EnableQuery]
         public ITestActionResult Get()
         {
-            Microsoft.AspNet.OData.Query.Validators.LogFile.Instance.AddLog(this.Request.Path.ToString() + this.Request.QueryString.ToString());
-
             return Ok(Albums);
         }
 
         public ITestActionResult Get(int key)
         {
-            Microsoft.AspNet.OData.Query.Validators.LogFile.Instance.AddLog(this.Request.Path.ToString() + this.Request.QueryString.ToString());
-
             return Ok(Albums.Single(s => s.ID == key));
         }
 
@@ -140,8 +128,6 @@ namespace Microsoft.Test.E2E.AspNet.OData.DollarId
 
         public ITestActionResult GetSalesFromAlbum(int key)
         {
-            Microsoft.AspNet.OData.Query.Validators.LogFile.Instance.AddLog(this.Request.Path.ToString() + this.Request.QueryString.ToString());
-
             var album = Albums.Single(a => a.ID == key);
             return Ok(album.Sales);
         }
@@ -150,8 +136,6 @@ namespace Microsoft.Test.E2E.AspNet.OData.DollarId
         [ODataRoute("Albums({key})/Sales({relatedKey})/$ref")]
         public ITestActionResult DeleteSalesInfoFromAlum(int key, int relatedKey)
         {
-            Microsoft.AspNet.OData.Query.Validators.LogFile.Instance.AddLog(this.Request.Path.ToString() + this.Request.QueryString.ToString());
-
             var album = Albums.Single(a => a.ID == key);
             var sales = album.Sales.Single(s => s.ID == relatedKey);
 

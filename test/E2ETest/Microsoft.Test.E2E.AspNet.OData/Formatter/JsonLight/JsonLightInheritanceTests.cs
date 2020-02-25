@@ -96,9 +96,13 @@ namespace Microsoft.Test.E2E.AspNet.OData.Formatter.JsonLight
         [MemberData(nameof(PostGetUpdateAndDeleteData))]
         public async Task PostGetUpdateAndDeleteJsonLight(Type entityType, string entitySetName, string acceptHeader)
         {
+            Microsoft.AspNet.OData.Query.Validators.LogFile.Instance.AddLog($"\nStarting  {entityType.FullName}, {entitySetName}, {acceptHeader}");
+
             AcceptHeader = acceptHeader;
 
             await PostGetUpdateAndDelete(entityType, entitySetName);
+
+            Microsoft.AspNet.OData.Query.Validators.LogFile.Instance.AddLog($"Done  {entityType.FullName}, {entitySetName}, {acceptHeader} \n");
         }
 
         [Theory]
@@ -113,8 +117,12 @@ namespace Microsoft.Test.E2E.AspNet.OData.Formatter.JsonLight
         [InlineData("application/json")]
         public async Task AddAndRemoveBaseNavigationPropertyInDerivedTypeJsonLight(string acceptHeader)
         {
+            Microsoft.AspNet.OData.Query.Validators.LogFile.Instance.AddLog($"\nStarting  {acceptHeader} 1");
+
             AcceptHeader = acceptHeader;
             await AddAndRemoveBaseNavigationPropertyInDerivedType();
+
+            Microsoft.AspNet.OData.Query.Validators.LogFile.Instance.AddLog($"\nEnd  {acceptHeader} 1");
         }
 
 #if !NETCORE // TODO #939: Enable these tests for AspNetCore
@@ -147,8 +155,12 @@ namespace Microsoft.Test.E2E.AspNet.OData.Formatter.JsonLight
         [InlineData("application/json")]
         public async Task CreateAndDeleteLinkToDerivedNavigationPropertyOnBaseEntitySetJsonLight(string acceptHeader)
         {
+            Microsoft.AspNet.OData.Query.Validators.LogFile.Instance.AddLog($"\nStarting  {acceptHeader} 2");
+
             AcceptHeader = acceptHeader;
             await CreateAndDeleteLinkToDerivedNavigationPropertyOnBaseEntitySet();
+
+            Microsoft.AspNet.OData.Query.Validators.LogFile.Instance.AddLog($"\End  {acceptHeader} 2");
         }
     }
 }

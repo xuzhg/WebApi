@@ -107,6 +107,8 @@ namespace Microsoft.Test.E2E.AspNet.OData.Common.Controllers
 
         public virtual void Delete()
         {
+            Microsoft.AspNet.OData.Query.Validators.LogFile.Instance.AddLog($"--Delete(): {typeof(TEntity).FullName}");
+
             this.LocalTable.Clear();
         }
 
