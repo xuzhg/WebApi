@@ -160,7 +160,7 @@ namespace Microsoft.Test.E2E.AspNet.OData.Formatter.JsonLight
             AcceptHeader = acceptHeader;
             await CreateAndDeleteLinkToDerivedNavigationPropertyOnBaseEntitySet();
 
-            Microsoft.AspNet.OData.Query.Validators.LogFile.Instance.AddLog($"\End  {acceptHeader} 2");
+            Microsoft.AspNet.OData.Query.Validators.LogFile.Instance.AddLog($"\nEnd  {acceptHeader} 2");
         }
     }
 }
