@@ -15,6 +15,7 @@ using Xunit;
 
 namespace Microsoft.Test.E2E.AspNet.OData.Singleton
 {
+    [Collection("ASP.NET OData E2E NonParallel Collection #1")]
     public class SingletonClientTest : WebHostTestBase<SingletonClientTest>
     {
         public SingletonClientTest(WebHostTestFixture<SingletonClientTest> fixture)
@@ -195,6 +196,4 @@ namespace Microsoft.Test.E2E.AspNet.OData.Singleton
             File.WriteAllText(filePath, csdl);
         }
     }
-
-    
 }

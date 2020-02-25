@@ -37,6 +37,7 @@ using HttpClientExtensions = System.Net.Http.HttpClientExtensions;
 
 namespace Microsoft.Test.E2E.AspNet.OData.Singleton
 {
+    [Collection("ASP.NET OData E2E NonParallel Collection #1")]
     public class SingletonTest : WebHostTestBase<SingletonTest>
     {
         private const string NameSpace = "Microsoft.Test.E2E.AspNet.OData.Singleton";

@@ -153,7 +153,7 @@ namespace Microsoft.Test.E2E.AspNet.OData.ETags
             {
                 // { "0", ",MA==,Mi4w," }, // DeleteUpdatedEntryWithIfMatchETagsTests will change #"0" customer
                 // { "1", ",MA==,NC4w," }, // PutUpdatedEntryWithIfMatchETagsTests will change #"1"customer
-                // { "2", ",MA==,Ni4w," }, // PatchUpdatedEntryWithIfMatchETagsTest will change #"2" cusotmer
+                // { "2", ",MA==,Ni4w," }, // PatchUpdatedEntryWithIfMatchETagsTest will change #"2" customer
                 { "3", ",MA==,OC4w," },
                 { "4", ",MA==,MTAuMA==," },
                 { "5", ",MA==,MTIuMA==," },

@@ -153,6 +153,89 @@ namespace Microsoft.Test.E2E.AspNet.OData.Batch.Tests.DataServicesClient
         }
 
         [Fact]
+        public async Task CanBatchQueriesWithDataServicesClient()
+        {
+            Uri serviceUrl = new Uri(BaseAddress + "/UnbufferedBatch");
+            UnbufferedBatchProxy.Container client = new UnbufferedBatchProxy.Container(serviceUrl);
+            client.Format.UseJson();
+            Uri customersRequestUri = new Uri(BaseAddress + "/UnbufferedBatch/UnbufferedBatchCustomer");
+            DataServiceRequest<UnbufferedBatchProxy.UnbufferedBatchCustomer> customersRequest = new DataServiceRequest<UnbufferedBatchProxy.UnbufferedBatchCustomer>(customersRequestUri);
+            Uri singleCustomerRequestUri = new Uri(BaseAddress + "/UnbufferedBatch/UnbufferedBatchCustomer(0)");
+            DataServiceRequest<UnbufferedBatchProxy.UnbufferedBatchCustomer> singleCustomerRequest = new DataServiceRequest<UnbufferedBatchProxy.UnbufferedBatchCustomer>(singleCustomerRequestUri);
+
+            DataServiceResponse batchResponse = await client.ExecuteBatchAsync(customersRequest, singleCustomerRequest);
+
+            if (batchResponse.IsBatchResponse)
+            {
+                Assert.Equal(200, batchResponse.BatchStatusCode);
+            }
+
+            foreach (QueryOperationResponse response in batchResponse)
+            {
+                Assert.Equal(200, response.StatusCode);
+                if (response.Query.RequestUri == customersRequestUri)
+                {
+                    // Previous test could modify the total count to be anywhere from, 10 to 14.
+                    Assert.InRange(response.Cast<UnbufferedBatchProxy.UnbufferedBatchCustomer>().Count(), 10, 14);
+                    continue;
+                }
+                if (response.Query.RequestUri == singleCustomerRequestUri)
+                {
+                    Assert.Single(response.Cast<UnbufferedBatchProxy.UnbufferedBatchCustomer>());
+                    continue;
+                }
+            }
+        }
+
+        [Fact]
+        public async Task SendsIndividualErrorWhenOneOfTheRequestsFails()
+        {
+            Uri serviceUrl = new Uri(BaseAddress + "/UnbufferedBatch");
+            UnbufferedBatchProxy.Container client = new UnbufferedBatchProxy.Container(serviceUrl);
+            client.Format.UseJson();
+
+            UnbufferedBatchProxy.UnbufferedBatchCustomer validCustomer = new UnbufferedBatchProxy.UnbufferedBatchCustomer()
+            {
+                Id = 10,
+                Name = "Customer 10"
+            };
+
+            UnbufferedBatchProxy.UnbufferedBatchCustomer invalidCustomer = new UnbufferedBatchProxy.UnbufferedBatchCustomer()
+            {
+                Id = -1,
+                Name = "Customer -1"
+            };
+
+            client.AddToUnbufferedBatchCustomer(validCustomer);
+            client.AddToUnbufferedBatchCustomer(invalidCustomer);
+            var exception = await Assert.ThrowsAsync<DataServiceRequestException>(async () =>
+            {
+                DataServiceResponse response = await client.SaveChangesAsync(SaveChangesOptions.BatchWithSingleChangeset);
+            });
+
+            Assert.NotNull(exception);
+            Assert.Equal(200, exception.Response.BatchStatusCode);
+            Assert.Single(exception.Response);
+        }
+
+        [Fact]
+        public virtual async Task CanSetLinksInABatchWithDataServicesClient()
+        {
+            Uri serviceUrl = new Uri(BaseAddress + "/UnbufferedBatch");
+            UnbufferedBatchProxy.Container client = new UnbufferedBatchProxy.Container(serviceUrl);
+            client.Format.UseJson();
+
+            UnbufferedBatchProxy.UnbufferedBatchCustomer customer = (await client.UnbufferedBatchCustomer.ExecuteAsync()).First();
+            UnbufferedBatchProxy.UnbufferedBatchOrder order = new UnbufferedBatchProxy.UnbufferedBatchOrder() { Id = 0, PurchaseDate = DateTime.Now };
+
+            client.AddToUnbufferedBatchOrder(order);
+
+            client.AddLink(customer, "Orders", order);
+
+            await client.SaveChangesAsync(SaveChangesOptions.BatchWithSingleChangeset);
+        }
+
+        [Fact]
         public async Task CanHandleAbsoluteAndRelativeUrls()
         {
             // Arrange
@@ -442,177 +525,6 @@ Content-Type: application/json;odata.metadata=minimal
                 }
             }
             Assert.Equal(1, subResponseCount);
-        }
-    }
-
-    public class QueryBatchTests : WebHostTestBase<QueryBatchTests>
-    {
-        public QueryBatchTests(WebHostTestFixture<QueryBatchTests> fixture)
-            :base(fixture)
-        {
-        }
-
-        protected static void UpdateConfigure(WebRouteConfiguration configuration)
-        {
-            ODataModelBuilder builder = configuration.CreateConventionModelBuilder();
-            configuration.MapODataServiceRoute(
-                "batch",
-                "UnbufferedBatch",
-                GetEdmModel(builder),
-                new DefaultODataPathHandler(),
-                ODataRoutingConventions.CreateDefault(),
-                configuration.CreateUnbufferedODataBatchHandler());
-        }
-
-        protected static IEdmModel GetEdmModel(ODataModelBuilder builder)
-        {
-            EntitySetConfiguration<UnbufferedBatchCustomer> customers = builder.EntitySet<UnbufferedBatchCustomer>("UnbufferedBatchCustomer");
-            EntitySetConfiguration<UnbufferedBatchOrder> orders = builder.EntitySet<UnbufferedBatchOrder>("UnbufferedBatchOrder");
-            customers.EntityType.Collection.Action("OddCustomers").ReturnsCollectionFromEntitySet<UnbufferedBatchCustomer>("UnbufferedBatchCustomer");
-            builder.MaxDataServiceVersion = builder.DataServiceVersion;
-            return builder.GetEdmModel();
-        }
-
-        [Fact]
-        public async Task CanBatchQueriesWithDataServicesClient()
-        {
-            Uri serviceUrl = new Uri(BaseAddress + "/UnbufferedBatch");
-            UnbufferedBatchProxy.Container client = new UnbufferedBatchProxy.Container(serviceUrl);
-            client.Format.UseJson();
-            Uri customersRequestUri = new Uri(BaseAddress + "/UnbufferedBatch/UnbufferedBatchCustomer");
-            DataServiceRequest<UnbufferedBatchProxy.UnbufferedBatchCustomer> customersRequest = new DataServiceRequest<UnbufferedBatchProxy.UnbufferedBatchCustomer>(customersRequestUri);
-            Uri singleCustomerRequestUri = new Uri(BaseAddress + "/UnbufferedBatch/UnbufferedBatchCustomer(0)");
-            DataServiceRequest<UnbufferedBatchProxy.UnbufferedBatchCustomer> singleCustomerRequest = new DataServiceRequest<UnbufferedBatchProxy.UnbufferedBatchCustomer>(singleCustomerRequestUri);
-
-            DataServiceResponse batchResponse = await client.ExecuteBatchAsync(customersRequest, singleCustomerRequest);
-
-            if (batchResponse.IsBatchResponse)
-            {
-                Assert.Equal(200, batchResponse.BatchStatusCode);
-            }
-
-            foreach (QueryOperationResponse response in batchResponse)
-            {
-                Assert.Equal(200, response.StatusCode);
-                if (response.Query.RequestUri == customersRequestUri)
-                {
-                    // Previous test could modify the total count to be anywhere from, 10 to 14.
-                    Assert.InRange(response.Cast<UnbufferedBatchProxy.UnbufferedBatchCustomer>().Count(), 10, 14);
-                    continue;
-                }
-                if (response.Query.RequestUri == singleCustomerRequestUri)
-                {
-                    Assert.Single(response.Cast<UnbufferedBatchProxy.UnbufferedBatchCustomer>());
-                    continue;
-                }
-            }
-        }
-    }
-
-    public class ErrorsBatchTests : WebHostTestBase<ErrorsBatchTests>
-    {
-        public ErrorsBatchTests(WebHostTestFixture<ErrorsBatchTests> fixture)
-            :base(fixture)
-        {
-        }
-
-        protected static void UpdateConfigure(WebRouteConfiguration configuration)
-        {
-            ODataModelBuilder builder = configuration.CreateConventionModelBuilder();
-            configuration.MapODataServiceRoute(
-                "batch",
-                "UnbufferedBatch",
-                GetEdmModel(builder),
-                new DefaultODataPathHandler(),
-                ODataRoutingConventions.CreateDefault(),
-                configuration.CreateUnbufferedODataBatchHandler());
-        }
-
-
-        protected static IEdmModel GetEdmModel(ODataModelBuilder builder)
-        {
-            EntitySetConfiguration<UnbufferedBatchCustomer> customers = builder.EntitySet<UnbufferedBatchCustomer>("UnbufferedBatchCustomer");
-            EntitySetConfiguration<UnbufferedBatchOrder> orders = builder.EntitySet<UnbufferedBatchOrder>("UnbufferedBatchOrder");
-            customers.EntityType.Collection.Action("OddCustomers").ReturnsCollectionFromEntitySet<UnbufferedBatchCustomer>("UnbufferedBatchCustomer");
-            builder.MaxDataServiceVersion = builder.DataServiceVersion;
-            return builder.GetEdmModel();
-        }
-
-        [Fact]
-        public async Task SendsIndividualErrorWhenOneOfTheRequestsFails()
-        {
-            Uri serviceUrl = new Uri(BaseAddress + "/UnbufferedBatch");
-            UnbufferedBatchProxy.Container client = new UnbufferedBatchProxy.Container(serviceUrl);
-            client.Format.UseJson();
-
-            UnbufferedBatchProxy.UnbufferedBatchCustomer validCustomer = new UnbufferedBatchProxy.UnbufferedBatchCustomer()
-            {
-                Id = 10,
-                Name = "Customer 10"
-            };
-
-            UnbufferedBatchProxy.UnbufferedBatchCustomer invalidCustomer = new UnbufferedBatchProxy.UnbufferedBatchCustomer()
-            {
-                Id = -1,
-                Name = "Customer -1"
-            };
-
-            client.AddToUnbufferedBatchCustomer(validCustomer);
-            client.AddToUnbufferedBatchCustomer(invalidCustomer);
-            var exception = await Assert.ThrowsAsync<DataServiceRequestException>(async () =>
-            {
-                DataServiceResponse response = await client.SaveChangesAsync(SaveChangesOptions.BatchWithSingleChangeset);
-            });
-
-            Assert.NotNull(exception);
-            Assert.Equal(200, exception.Response.BatchStatusCode);
-            Assert.Single(exception.Response);
-        }
-    }
-
-    public class LinksBatchTests : WebHostTestBase<LinksBatchTests>
-    {
-        public LinksBatchTests(WebHostTestFixture<LinksBatchTests> fixture)
-            :base(fixture)
-        {
-        }
-
-        protected static void UpdateConfigure(WebRouteConfiguration configuration)
-        {
-            ODataModelBuilder builder = configuration.CreateConventionModelBuilder();
-            configuration.MapODataServiceRoute(
-                "batch",
-                "UnbufferedBatch",
-                GetEdmModel(builder),
-                new DefaultODataPathHandler(),
-                ODataRoutingConventions.CreateDefault(),
-                configuration.CreateUnbufferedODataBatchHandler());
-        }
-
-        protected static IEdmModel GetEdmModel(ODataModelBuilder builder)
-        {
-            EntitySetConfiguration<UnbufferedBatchCustomer> customers = builder.EntitySet<UnbufferedBatchCustomer>("UnbufferedBatchCustomer");
-            EntitySetConfiguration<UnbufferedBatchOrder> orders = builder.EntitySet<UnbufferedBatchOrder>("UnbufferedBatchOrder");
-            customers.EntityType.Collection.Action("OddCustomers").ReturnsCollectionFromEntitySet<UnbufferedBatchCustomer>("UnbufferedBatchCustomer");
-            builder.MaxDataServiceVersion = builder.DataServiceVersion;
-            return builder.GetEdmModel();
-        }
-
-        [Fact]
-        public virtual async Task CanSetLinksInABatchWithDataServicesClient()
-        {
-            Uri serviceUrl = new Uri(BaseAddress + "/UnbufferedBatch");
-            UnbufferedBatchProxy.Container client = new UnbufferedBatchProxy.Container(serviceUrl);
-            client.Format.UseJson();
-
-            UnbufferedBatchProxy.UnbufferedBatchCustomer customer = (await client.UnbufferedBatchCustomer.ExecuteAsync()).First();
-            UnbufferedBatchProxy.UnbufferedBatchOrder order = new UnbufferedBatchProxy.UnbufferedBatchOrder() { Id = 0, PurchaseDate = DateTime.Now };
-
-            client.AddToUnbufferedBatchOrder(order);
-
-            client.AddLink(customer, "Orders", order);
-
-            await client.SaveChangesAsync(SaveChangesOptions.BatchWithSingleChangeset);
         }
     }
 

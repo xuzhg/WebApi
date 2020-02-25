@@ -151,6 +151,90 @@ namespace Microsoft.Test.E2E.AspNet.OData.Batch.Tests.DataServicesClient
         }
 
         [Fact]
+        public async Task CanBatchQueriesWithDataServicesClient()
+        {
+            Uri serviceUrl = new Uri(BaseAddress + "/DefaultBatch");
+            DefaultBatchProxy.Container client = new DefaultBatchProxy.Container(serviceUrl);
+            client.Format.UseJson();
+            Uri customersRequestUri = new Uri(BaseAddress + "/DefaultBatch/DefaultBatchCustomer");
+            DataServiceRequest<DefaultBatchProxy.DefaultBatchCustomer> customersRequest = new DataServiceRequest<DefaultBatchProxy.DefaultBatchCustomer>(customersRequestUri);
+            Uri singleCustomerRequestUri = new Uri(BaseAddress + "/DefaultBatch/DefaultBatchCustomer(0)");
+            DataServiceRequest<DefaultBatchProxy.DefaultBatchCustomer> singleCustomerRequest = new DataServiceRequest<DefaultBatchProxy.DefaultBatchCustomer>(singleCustomerRequestUri);
+
+            DataServiceResponse batchResponse = await client.ExecuteBatchAsync(customersRequest, singleCustomerRequest);
+
+            if (batchResponse.IsBatchResponse)
+            {
+                Assert.Equal(200, batchResponse.BatchStatusCode);
+            }
+
+            foreach (QueryOperationResponse response in batchResponse)
+            {
+                Assert.Equal(200, response.StatusCode);
+                if (response.Query.RequestUri == customersRequestUri)
+                {
+                    // Previous test could modify the total count to be anywhere from, 10 to 14.
+                    Assert.InRange(response.Cast<DefaultBatchProxy.DefaultBatchCustomer>().Count(), 10, 14);
+                    continue;
+                }
+                if (response.Query.RequestUri == singleCustomerRequestUri)
+                {
+                    Assert.Single(response.Cast<DefaultBatchProxy.DefaultBatchCustomer>());
+                    continue;
+                }
+            }
+        }
+
+        [Fact]
+        public async Task SendsIndividualErrorWhenOneOfTheRequestsFails()
+        {
+            Uri serviceUrl = new Uri(BaseAddress + "/DefaultBatch");
+            DefaultBatchProxy.Container client = new DefaultBatchProxy.Container(serviceUrl);
+            client.Format.UseJson();
+
+            DefaultBatchProxy.DefaultBatchCustomer validCustomer = new DefaultBatchProxy.DefaultBatchCustomer()
+            {
+                Id = 10,
+                Name = "Customer 10"
+            };
+
+            DefaultBatchProxy.DefaultBatchCustomer invalidCustomer = new DefaultBatchProxy.DefaultBatchCustomer()
+            {
+                Id = -1,
+                Name = "Customer -1"
+            };
+
+            client.AddToDefaultBatchCustomer(validCustomer);
+            client.AddToDefaultBatchCustomer(invalidCustomer);
+            var exception = await Assert.ThrowsAsync<DataServiceRequestException>(async () =>
+            {
+                DataServiceResponse response = await client.SaveChangesAsync(SaveChangesOptions.BatchWithSingleChangeset);
+            });
+
+            Assert.NotNull(exception);
+            Assert.Equal(200, exception.Response.BatchStatusCode);
+            Assert.Single(exception.Response);
+        }
+
+        [Fact]
+        public async Task CanSetLinksInABatchWithDataServicesClient()
+        {
+            Uri serviceUrl = new Uri(BaseAddress + "/DefaultBatch");
+            DefaultBatchProxy.Container client = new DefaultBatchProxy.Container(serviceUrl);
+            client.Format.UseJson();
+
+            DefaultBatchProxy.DefaultBatchCustomer customer = (await client.DefaultBatchCustomer.ExecuteAsync()).First();
+            DefaultBatchProxy.DefaultBatchOrder order = new DefaultBatchProxy.DefaultBatchOrder() { Id = 0, PurchaseDate = DateTime.Now };
+
+            client.AddToDefaultBatchOrder(order);
+
+            client.AddLink(customer, "Orders", order);
+
+            var response = await client.SaveChangesAsync(SaveChangesOptions.BatchWithSingleChangeset);
+            Assert.Equal(200, response.BatchStatusCode);
+        }
+
+        [Fact]
         public async Task CanHandleAbsoluteAndRelativeUrls()
         {
             // Arrange
@@ -546,195 +630,6 @@ Content-Type: application/json;odata.metadata=minimal
                 }
             }
             Assert.Equal(1, subResponseCount);
-        }
-    }
-
-    public class DefaultBatchHandlerQueryBatchTests : WebHostTestBase<DefaultBatchHandlerQueryBatchTests>
-    {
-        public DefaultBatchHandlerQueryBatchTests(WebHostTestFixture<DefaultBatchHandlerQueryBatchTests> fixture)
-            :base(fixture)
-        {
-        }
-
-        protected static void UpdateConfigure(WebRouteConfiguration configuration)
-        {
-            configuration.MapODataServiceRoute(
-                "batch",
-                "DefaultBatch",
-                GetEdmModel(configuration),
-                new DefaultODataPathHandler(),
-                ODataRoutingConventions.CreateDefault(),
-                configuration.CreateDefaultODataBatchHandler());
-        }
-
-        protected static IEdmModel GetEdmModel(WebRouteConfiguration configuration)
-        {
-            var builder = configuration.CreateConventionModelBuilder();
-            builder.EntitySet<DefaultBatchCustomer>("DefaultBatchCustomer")
-                   .EntityType
-                   .Collection
-                   .Action("OddCustomers")
-                   .ReturnsCollectionFromEntitySet<DefaultBatchCustomer>("DefaultBatchCustomer");
-
-            builder.EntitySet<DefaultBatchOrder>("DefaultBatchOrder");
-            builder.MaxDataServiceVersion = builder.DataServiceVersion;
-            return builder.GetEdmModel();
-        }
-
-        [Fact]
-        public async Task CanBatchQueriesWithDataServicesClient()
-        {
-            Uri serviceUrl = new Uri(BaseAddress + "/DefaultBatch");
-            DefaultBatchProxy.Container client = new DefaultBatchProxy.Container(serviceUrl);
-            client.Format.UseJson();
-            Uri customersRequestUri = new Uri(BaseAddress + "/DefaultBatch/DefaultBatchCustomer");
-            DataServiceRequest<DefaultBatchProxy.DefaultBatchCustomer> customersRequest = new DataServiceRequest<DefaultBatchProxy.DefaultBatchCustomer>(customersRequestUri);
-            Uri singleCustomerRequestUri = new Uri(BaseAddress + "/DefaultBatch/DefaultBatchCustomer(0)");
-            DataServiceRequest<DefaultBatchProxy.DefaultBatchCustomer> singleCustomerRequest = new DataServiceRequest<DefaultBatchProxy.DefaultBatchCustomer>(singleCustomerRequestUri);
-
-            DataServiceResponse batchResponse = await client.ExecuteBatchAsync(customersRequest, singleCustomerRequest);
-
-            if (batchResponse.IsBatchResponse)
-            {
-                Assert.Equal(200, batchResponse.BatchStatusCode);
-            }
-
-            foreach (QueryOperationResponse response in batchResponse)
-            {
-                Assert.Equal(200, response.StatusCode);
-                if (response.Query.RequestUri == customersRequestUri)
-                {
-                    // Previous test could modify the total count to be anywhere from, 10 to 14.
-                    Assert.InRange(response.Cast<DefaultBatchProxy.DefaultBatchCustomer>().Count(), 10, 14);
-                    continue;
-                }
-                if (response.Query.RequestUri == singleCustomerRequestUri)
-                {
-                    Assert.Single(response.Cast<DefaultBatchProxy.DefaultBatchCustomer>());
-                    continue;
-                }
-            }
-        }
-    }
-
-
-    public class DefaultBatchHandlerErrorsBatchTests : WebHostTestBase<DefaultBatchHandlerErrorsBatchTests>
-    {
-        public DefaultBatchHandlerErrorsBatchTests(WebHostTestFixture<DefaultBatchHandlerErrorsBatchTests> fixture)
-            :base(fixture)
-        {
-        }
-
-        protected static void UpdateConfigure(WebRouteConfiguration configuration)
-        {
-            configuration.MapODataServiceRoute(
-                "batch",
-                "DefaultBatch",
-                GetEdmModel(configuration),
-                new DefaultODataPathHandler(),
-                ODataRoutingConventions.CreateDefault(),
-                configuration.CreateDefaultODataBatchHandler());
-        }
-
-        protected static IEdmModel GetEdmModel(WebRouteConfiguration configuration)
-        {
-            var builder = configuration.CreateConventionModelBuilder();
-
-            builder.EntitySet<DefaultBatchCustomer>("DefaultBatchCustomer")
-                   .EntityType
-                   .Collection
-                   .Action("OddCustomers")
-                   .ReturnsCollectionFromEntitySet<DefaultBatchCustomer>("DefaultBatchCustomer");
-
-            builder.EntitySet<DefaultBatchOrder>("DefaultBatchOrder");
-
-            builder.MaxDataServiceVersion = builder.DataServiceVersion;
-            return builder.GetEdmModel();
-        }
-
-        [Fact]
-        public async Task SendsIndividualErrorWhenOneOfTheRequestsFails()
-        {
-            Uri serviceUrl = new Uri(BaseAddress + "/DefaultBatch");
-            DefaultBatchProxy.Container client = new DefaultBatchProxy.Container(serviceUrl);
-            client.Format.UseJson();
-
-            DefaultBatchProxy.DefaultBatchCustomer validCustomer = new DefaultBatchProxy.DefaultBatchCustomer()
-            {
-                Id = 10,
-                Name = "Customer 10"
-            };
-
-            DefaultBatchProxy.DefaultBatchCustomer invalidCustomer = new DefaultBatchProxy.DefaultBatchCustomer()
-            {
-                Id = -1,
-                Name = "Customer -1"
-            };
-
-            client.AddToDefaultBatchCustomer(validCustomer);
-            client.AddToDefaultBatchCustomer(invalidCustomer);
-            var exception = await Assert.ThrowsAsync<DataServiceRequestException>(async () =>
-            {
-                DataServiceResponse response = await client.SaveChangesAsync(SaveChangesOptions.BatchWithSingleChangeset);
-            });
-
-            Assert.NotNull(exception);
-            Assert.Equal(200, exception.Response.BatchStatusCode);
-            Assert.Single(exception.Response);
-        }
-    }
-
-
-    public class DefaultBatchHandlerLinksBatchTests : WebHostTestBase<DefaultBatchHandlerLinksBatchTests>
-    {
-        public DefaultBatchHandlerLinksBatchTests(WebHostTestFixture<DefaultBatchHandlerLinksBatchTests> fixture)
-            :base(fixture)
-        {
-        }
-
-        protected static void UpdateConfigure(WebRouteConfiguration configuration)
-        {
-            configuration.MapODataServiceRoute(
-                "batch",
-                "DefaultBatch",
-                GetEdmModel(configuration),
-                new DefaultODataPathHandler(),
-                ODataRoutingConventions.CreateDefault(),
-                configuration.CreateDefaultODataBatchHandler());
-        }
-
-        protected static IEdmModel GetEdmModel(WebRouteConfiguration configuration)
-        {
-            var builder = configuration.CreateConventionModelBuilder();
-
-            builder.EntitySet<DefaultBatchCustomer>("DefaultBatchCustomer")
-                   .EntityType
-                   .Collection.Action("OddCustomers")
-                   .ReturnsCollectionFromEntitySet<DefaultBatchCustomer>("DefaultBatchCustomer");
-
-            builder.EntitySet<DefaultBatchOrder>("DefaultBatchOrder");
-
-            builder.MaxDataServiceVersion = builder.DataServiceVersion;
-
-            return builder.GetEdmModel();
-        }
-
-        [Fact]
-        public async Task CanSetLinksInABatchWithDataServicesClient()
-        {
-            Uri serviceUrl = new Uri(BaseAddress + "/DefaultBatch");
-            DefaultBatchProxy.Container client = new DefaultBatchProxy.Container(serviceUrl);
-            client.Format.UseJson();
-
-            DefaultBatchProxy.DefaultBatchCustomer customer = (await client.DefaultBatchCustomer.ExecuteAsync()).First();
-            DefaultBatchProxy.DefaultBatchOrder order = new DefaultBatchProxy.DefaultBatchOrder() { Id = 0, PurchaseDate = DateTime.Now };
-
-            client.AddToDefaultBatchOrder(order);
-
-            client.AddLink(customer, "Orders", order);
-
-            var response = await client.SaveChangesAsync(SaveChangesOptions.BatchWithSingleChangeset);
-            Assert.Equal(200, response.BatchStatusCode);
         }
     }
 
