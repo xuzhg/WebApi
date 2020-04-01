@@ -2,6 +2,7 @@
 // Licensed under the MIT License.  See License.txt in the project root for license information.
 
 using AspNetCore3xODataSample.Web.Models;
+using Castle.Core.Logging;
 using Microsoft.AspNet.OData.Extensions;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -9,12 +10,17 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.OData.Edm;
+using ILoggerFactory = Microsoft.Extensions.Logging.ILoggerFactory;
 
 namespace AspNetCore3xODataSample.Web
 {
     public class Startup
     {
+        public static readonly ILoggerFactory MyLoggerFactory
+           = LoggerFactory.Create(builder => { builder.AddConsole(); });
+
         public Startup(IConfiguration configuration)
         {
             Configuration = configuration;
@@ -25,7 +31,9 @@ namespace AspNetCore3xODataSample.Web
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
         {
-            services.AddDbContext<CustomerOrderContext>(opt => opt.UseLazyLoadingProxies().UseInMemoryDatabase("CustomerOrderList"));
+            services.AddDbContext<ProductDepartmentContext>(opt => opt.UseSqlServer(Configuration.GetConnectionString("DefaultConnection")).UseLoggerFactory(MyLoggerFactory));
+
+         //   services.AddDbContext<CustomerOrderContext>(opt => opt.UseLazyLoadingProxies().UseInMemoryDatabase("CustomerOrderList"));
             services.AddOData();
             services.AddMvc(options => options.EnableEndpointRouting = false);
         }

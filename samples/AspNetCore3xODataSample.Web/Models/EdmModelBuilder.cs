@@ -14,9 +14,14 @@ namespace AspNetCore3xODataSample.Web.Models
         {
             if (_edmModel == null)
             {
+                //var builder = new ODataConventionModelBuilder();
+                //builder.EntitySet<Customer>("Customers");
+                //builder.EntitySet<Order>("Orders");
+                //_edmModel = builder.GetEdmModel();
+
                 var builder = new ODataConventionModelBuilder();
-                builder.EntitySet<Customer>("Customers");
-                builder.EntitySet<Order>("Orders");
+                builder.EntitySet<Product>("Products");
+                builder.EntitySet<Department>("Departments");
                 _edmModel = builder.GetEdmModel();
             }
 
