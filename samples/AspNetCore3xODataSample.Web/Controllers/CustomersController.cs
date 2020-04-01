@@ -10,6 +10,28 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AspNetCore3xODataSample.Web.Controllers
 {
+    public class ProductsController : ODataController
+    {
+        private readonly ProductDepartmentContext _context;
+
+        public ProductsController(ProductDepartmentContext context)
+        {
+            _context = context;
+        }
+
+        [EnableQuery]
+        public IActionResult Get()
+        {
+            return Ok(_context.Products);
+        }
+
+        [EnableQuery]
+        public IActionResult Get(int key)
+        {
+            return Ok(_context.Products.FirstOrDefault(c => c.ProductId == key));
+        }
+    }
+
     public class CustomersController : ODataController
     {
         private readonly CustomerOrderContext _context;
