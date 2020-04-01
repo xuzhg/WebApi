@@ -4,6 +4,8 @@
 using AspNetCore3xODataSample.Web.Models;
 using Castle.Core.Logging;
 using Microsoft.AspNet.OData.Extensions;
+using Microsoft.AspNet.OData.Query;
+using Microsoft.AspNet.OData.Routing.Conventions;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.EntityFrameworkCore;
@@ -11,7 +13,9 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.OData;
 using Microsoft.OData.Edm;
+using System.Collections.Generic;
 using ILoggerFactory = Microsoft.Extensions.Logging.ILoggerFactory;
 
 namespace AspNetCore3xODataSample.Web
@@ -52,7 +56,17 @@ namespace AspNetCore3xODataSample.Web
             {
                 builder.Select().Expand().Filter().OrderBy().MaxTop(100).Count();
 
-                builder.MapODataServiceRoute("odata", "odata", model);
+            //   builder.MapODataServiceRoute("odata", "odata", model);
+
+            builder.MapODataServiceRoute("odata", "odata", containerBuilder =>
+            containerBuilder.AddService(Microsoft.OData.ServiceLifetime.Singleton, sp => model)
+            .AddService(Microsoft.OData.ServiceLifetime.Scoped, sp => new ODataQuerySettings
+            {
+                // DI works, but it can't override the setting. Ugly??? 
+                HandleNullPropagation = HandleNullPropagationOption.False
+            })
+                       .AddService<IEnumerable<IODataRoutingConvention>>(Microsoft.OData.ServiceLifetime.Singleton, sp =>
+                           ODataRoutingConventions.CreateDefaultWithAttributeRouting("odata", builder)));
             });
         }
     }

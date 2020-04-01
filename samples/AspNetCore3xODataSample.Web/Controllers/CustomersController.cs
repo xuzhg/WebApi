@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Linq;
 using AspNetCore3xODataSample.Web.Models;
 using Microsoft.AspNet.OData;
+using Microsoft.AspNet.OData.Query;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -19,7 +20,7 @@ namespace AspNetCore3xODataSample.Web.Controllers
             _context = context;
         }
 
-        [EnableQuery]
+        [EnableQuery(HandleNullPropagation = HandleNullPropagationOption.False)]
         public IActionResult Get()
         {
             return Ok(_context.Products);
@@ -93,7 +94,7 @@ namespace AspNetCore3xODataSample.Web.Controllers
             }
         }
 
-        [EnableQuery]
+        [EnableQuery(HandleNullPropagation = HandleNullPropagationOption.False)]
         public IActionResult Get()
         {
             // Be noted: without the NoTracking setting, the query for $select=HomeAddress with throw exception:

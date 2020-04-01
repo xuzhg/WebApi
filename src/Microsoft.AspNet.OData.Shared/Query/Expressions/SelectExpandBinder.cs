@@ -82,7 +82,7 @@ namespace Microsoft.AspNet.OData.Query.Expressions
         {
             Type elementType = selectExpandQuery.Context.ElementClrType;
             IEdmNavigationSource navigationSource = selectExpandQuery.Context.NavigationSource;
-            ParameterExpression source = Expression.Parameter(elementType, "$it");
+            ParameterExpression source = Expression.Parameter(elementType);
 
             // expression looks like -> new Wrapper { Instance = source , Properties = "...", Container = new PropertyContainer { ... } }
             Expression projectionExpression = ProjectElement(source, selectExpandQuery.SelectExpandClause, _context.ElementType as IEdmStructuredType, navigationSource);
@@ -961,7 +961,7 @@ namespace Microsoft.AspNet.OData.Query.Expressions
         {
             // structuralType could be null, because it can be primitive collection.
 
-            ParameterExpression element = Expression.Parameter(elementType, "$it");
+            ParameterExpression element = Expression.Parameter(elementType);
 
             Expression projection;
             // expression
