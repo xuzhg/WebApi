@@ -23,5 +23,22 @@ namespace AspNetCore3xEndpointSample.Web.Models
             return _edmModel;
         }
 
+        public static IEdmModel GetEdmModel2()
+        {
+            ODataConventionModelBuilder builder = new ODataConventionModelBuilder();
+
+            var policy = builder.EntitySet<UpdatePolicy>("UpdatePolicies").EntityType;
+            policy.Filter("PolicyType");
+
+            policy.Function("Devices").ReturnsFromEntitySet<DeviceAssets>("Devices");
+            policy.Function("DeviceDetails").ReturnsCollectionFromEntitySet<DeviceAsset>("DeviceDetails");
+
+            var tenants = builder.EntitySet<Tenant>("Tenants").EntityType;
+
+            var addDevicesAction = builder.EntityType<UpdatePolicy>().Action("AddDevices");
+            addDevicesAction.CollectionParameter<string>("DeviceIds");
+
+            return builder.GetEdmModel();
+        }
     }
 }

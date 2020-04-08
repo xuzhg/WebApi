@@ -45,7 +45,7 @@ namespace AspNetCore3xEndpointSample.Web
                 app.UseDeveloperExceptionPage();
             }
 
-            IEdmModel model = EdmModelBuilder.GetEdmModel();
+            IEdmModel model = EdmModelBuilder.GetEdmModel2();
 
             // Please add "UseODataBatching()" before "UseRouting()" to support OData $batch.
             app.UseODataBatching();
@@ -54,21 +54,25 @@ namespace AspNetCore3xEndpointSample.Web
 
             app.UseEndpoints(endpoints =>
             {
-                endpoints.MapODataRoute(
-                    "nullPrefix", null,
-                    b =>
-                    {
-                        b.AddService(Microsoft.OData.ServiceLifetime.Singleton, sp => model);
-                        b.AddService<ODataDeserializerProvider>(Microsoft.OData.ServiceLifetime.Singleton, sp => new EntityReferenceODataDeserializerProvider(sp));
-                        b.AddService<IEnumerable<IODataRoutingConvention>>(Microsoft.OData.ServiceLifetime.Singleton,
-                            sp => ODataRoutingConventions.CreateDefaultWithAttributeRouting("nullPrefix", endpoints.ServiceProvider));
-                    });
+                //endpoints.MapODataRoute(
+                //    "nullPrefix", null,
+                //    b =>
+                //    {
+                //        b.AddService(Microsoft.OData.ServiceLifetime.Singleton, sp => model);
+                //        b.AddService<ODataDeserializerProvider>(Microsoft.OData.ServiceLifetime.Singleton, sp => new EntityReferenceODataDeserializerProvider(sp));
+                //        b.AddService<IEnumerable<IODataRoutingConvention>>(Microsoft.OData.ServiceLifetime.Singleton,
+                //            sp => ODataRoutingConventions.CreateDefaultWithAttributeRouting("nullPrefix", endpoints.ServiceProvider));
+                //    });
 
-                endpoints.MapODataRoute("odataPrefix", "odata", model);
+                //endpoints.MapODataRoute("odataPrefix", "odata", model);
 
-                endpoints.MapODataRoute("myPrefix", "my/{data}", model);
+                //endpoints.MapODataRoute("myPrefix", "my/{data}", model);
 
-                endpoints.MapODataRoute("msPrefix", "ms", model, new DefaultODataBatchHandler());
+                //endpoints.MapODataRoute("msPrefix", "ms", model, new DefaultODataBatchHandler());
+
+                endpoints.Expand().Select().SkipToken();
+
+                endpoints.MapODataRoute("odata", "odata", model);
             });
         }
     }

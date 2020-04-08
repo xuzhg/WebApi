@@ -2,6 +2,7 @@
 // Licensed under the MIT License.  See License.txt in the project root for license information.
 
 using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using Microsoft.EntityFrameworkCore;
 
@@ -35,5 +36,51 @@ namespace AspNetCore3xEndpointSample.Web.Models
         public string City { get; set; }
 
         public string Street { get; set; }
+    }
+
+    public abstract class UpdatePolicy
+    {
+        public string UpdatePolicyId { get; set; }
+
+        /// <summary>
+        /// Gets or sets the device collection for the policy
+        /// </summary>
+        public DeviceAssets Devices { get; set; }
+    }
+
+    public class DeviceAsset
+    {
+       /// <summary>
+        /// Gets or sets Asset key
+        /// </summary>
+        [Key]
+        public string AssetId { get; set; }
+
+        /// <summary>
+        /// Gets or sets the tenant id
+        /// </summary>
+        public string TenantId { get; set; }
+    }
+
+    public class DeviceAssets
+    {
+        /// <summary>
+        /// Gets or sets Asset key
+        /// </summary>
+        [Key]
+        public string AssetId { get; set; }
+    }
+
+    public class Tenant
+    {
+        /// <summary>
+        /// Gets or sets Tenant id
+        /// </summary>
+        public string TenantId { get; set; }
+
+        /// <summary>
+        /// Gets or sets the device collection for the policy
+        /// </summary>
+        public IList<UpdatePolicy> UpdatePolicies { get; set; }
     }
 }

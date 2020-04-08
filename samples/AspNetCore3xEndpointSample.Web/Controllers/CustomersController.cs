@@ -5,11 +5,23 @@ using System.Collections.Generic;
 using System.Linq;
 using AspNetCore3xEndpointSample.Web.Models;
 using Microsoft.AspNet.OData;
+using Microsoft.AspNet.OData.Routing;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace AspNetCore3xEndpointSample.Web.Controllers
 {
+    [ODataRoutePrefix("UpdatePolicies")]
+    public class AnyController : ODataController
+    {
+        [HttpPost]
+        [ODataRoute("({key})/AddDevices")]
+        public IActionResult AddDevices322([FromODataUri] string key)
+        {
+            return new OkObjectResult(key);
+        }
+    }
+
     public class CustomersController : ODataController
     {
         private readonly CustomerOrderContext _context;
