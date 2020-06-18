@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNet.OData;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.OData.Routing;
 using ODataRoutingSample.Models;
 using System;
@@ -51,6 +52,12 @@ namespace ODataRoutingSample.Controllers
                 Title = "Title + " + index
             })
             .ToArray();
+        }
+
+        [HttpGet]
+        public bool CanMoveToAddress(int key, [FromODataUri]Address address)
+        {
+            return true;
         }
     }
 

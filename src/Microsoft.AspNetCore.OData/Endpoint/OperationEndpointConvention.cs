@@ -119,9 +119,9 @@ namespace Microsoft.AspNetCore.OData.Routing
                     };
                     if (hasKeyParameter)
                     {
-                        segments.Add(new MyKeyTemplate(entityType));
+                        segments.Add(new MyKeyTemplate(entityType, NavigationSource));
                     }
-                    segments.Add(new MyActionSegment(actions[0], false));
+                    segments.Add(new MyActionSegment(actions[0], NavigationSource, false));
 
                     ODataTemplate template = new ODataTemplate(segments);
 
@@ -150,9 +150,9 @@ namespace Microsoft.AspNetCore.OData.Routing
                     };
                 if (hasKeyParameter)
                 {
-                    segments.Add(new MyKeyTemplate(entityType));
+                    segments.Add(new MyKeyTemplate(entityType, NavigationSource));
                 }
-                segments.Add(new MyFunctionSegment(function, false));
+                segments.Add(new MyFunctionSegment(function, NavigationSource, false));
 
                 ODataTemplate template = new ODataTemplate(segments);
 
@@ -163,7 +163,8 @@ namespace Microsoft.AspNetCore.OData.Routing
                     action.Selectors.Add(selectorModel);
                 }
 
-                string templateStr = template.Template;
+                string templateStr = string.IsNullOrEmpty(prefix) ? template.Template : $"{prefix}/{template.Template}";
+
                 selectorModel.AttributeRouteModel = new AttributeRouteModel(new RouteAttribute(templateStr) { Name = prefix });
                 selectorModel.EndpointMetadata.Add(new ODataEndpointMetadata(prefix, model, template));
 
@@ -200,7 +201,7 @@ namespace Microsoft.AspNetCore.OData.Routing
         private static IEdmFunction FindMatchFunction(int keyNumber, IEnumerable<IEdmFunction> functions, ActionModel action)
         {
             // if it's action
-            int actionParameterNumber = action.Parameters.Count - keyNumber;
+            int actionParameterNumber = action.Parameters.Count - keyNumber + 1; // +1 means to include the binding type
             foreach (var function in functions)
             {
                 if (function.Parameters.Count() != actionParameterNumber)

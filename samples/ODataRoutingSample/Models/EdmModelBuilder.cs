@@ -32,9 +32,12 @@ namespace ODataRoutingSample.Models
         public static IEdmModel GetEdmModelV2()
         {
             var builder = new ODataConventionModelBuilder();
-            builder.EntitySet<Order>("Orders");
+            var order = builder.EntitySet<Order>("Orders");
 
             builder.Singleton<Order>("MeOrder");
+
+            var functionWithComplexTypeParameter = builder.EntityType<Order>().Function("CanMoveToAddress").Returns<bool>();
+            functionWithComplexTypeParameter.Parameter<Address>("address");
 
             // Function 1
             var function = builder.Function("RateByOrder");

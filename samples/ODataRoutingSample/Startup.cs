@@ -19,6 +19,7 @@ using Microsoft.AspNet.OData.Routing;
 using Microsoft.OData;
 using Microsoft.OData.Json;
 using Microsoft.AspNet.OData.Formatter;
+using Microsoft.AspNet.OData.Formatter.Deserialization;
 
 namespace ODataRoutingSample
 {
@@ -78,8 +79,20 @@ namespace ODataRoutingSample
 
         private static void RegisterMissingServices(IServiceCollection services/*, IEdmModel model*/)
         {
-           // services.AddSingleton(model);
+            // services.AddSingleton(model);
+
             services.AddSingleton<ODataSerializerProvider, DefaultODataSerializerProvider>();
+            services.AddSingleton<ODataDeserializerProvider, DefaultODataDeserializerProvider>();
+
+            // Deserializers.
+            services.AddSingleton<ODataResourceDeserializer>();
+            services.AddSingleton<ODataEnumDeserializer>();
+            services.AddSingleton<ODataPrimitiveDeserializer>();
+            services.AddSingleton<ODataResourceSetDeserializer>();
+            services.AddSingleton<ODataCollectionDeserializer>();
+            services.AddSingleton<ODataEntityReferenceLinkDeserializer>();
+            services.AddSingleton<ODataActionPayloadDeserializer>();
+
             services.AddSingleton<ODataResourceSetSerializer>();
             services.AddSingleton<ODataResourceSerializer>();
             services.AddSingleton<ODataPrimitiveSerializer>();
@@ -90,7 +103,13 @@ namespace ODataRoutingSample
             services.AddSingleton<ODataPayloadValueConverter>();
             services.AddSingleton<ODataSimplifiedOptions>();
             services.AddSingleton<IJsonWriterFactory, DefaultJsonWriterFactory>();
-       //     services.AddSingleton<IETagHandler, DefaultODataETagHandler>();
+            //     services.AddSingleton<IETagHandler, DefaultODataETagHandler>();
+
+            services.AddSingleton(new ODataMessageReaderSettings
+            {
+                EnableMessageStreamDisposal = false,
+                MessageQuotas = new ODataMessageQuotas { MaxReceivedMessageSize = Int64.MaxValue },
+            });
         }
     }
 }

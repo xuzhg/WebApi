@@ -31,6 +31,11 @@ namespace Microsoft.AspNet.OData.Interfaces
         ODataPath Path { get; set; }
 
         /// <summary>
+        /// 
+        /// </summary>
+        Microsoft.OData.UriParser.ODataPath ODataPath { get; set; }
+
+        /// <summary>
         /// Gets or sets the route name.
         /// </summary>
         string RoutePrefix { get; set; }

@@ -46,6 +46,11 @@ namespace Microsoft.AspNet.OData
         /// <summary>
         /// Gets or sets the OData path.
         /// </summary>
+        public Microsoft.OData.UriParser.ODataPath ODataPath { get; set; }
+
+        /// <summary>
+        /// Gets or sets the OData path.
+        /// </summary>
         public ODataPath Path { get; set; }
 
         /// <summary>

@@ -41,6 +41,11 @@ namespace Microsoft.AspNetCore.OData.Routing
         // { { "$filter", "IntProp eq @p1" }, { "@p1", "@p2" }, { "@p2", "123" } });
         public ODataPath GenerateODataPath(RouteValueDictionary values, QueryString queryString)
         {
+            if (Template != null)
+            {
+                return Template.GenerateODataPath(Model, values, queryString);
+            }
+
             return null;
         }
     }

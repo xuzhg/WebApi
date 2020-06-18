@@ -85,6 +85,20 @@ namespace Microsoft.AspNetCore.OData.Routing
                     newValues.Add(key, value);
                 }
 
+                var oPath = oDataMetadata.GenerateODataPath(originalValues, httpContext.Request.QueryString);
+                if (oPath != null)
+                {
+                    var odata = httpContext.Request.ODataFeature();
+                    odata.Model = oDataMetadata.Model;
+                    odata.IsEndpointRouting = true;
+                    odata.RequestContainer = httpContext.RequestServices; // sp;
+                    odata.ODataPath = oPath;
+
+                    candidates.SetValidity(i, true);
+                    break;
+                }
+
+
                 string oDataPathValue = GetODataRouteInfo(originalValues);
                 HttpRequest request = httpContext.Request;
 
