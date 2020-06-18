@@ -14,6 +14,7 @@ using Microsoft.OData.UriParser.Aggregation;
 using IODataRoutingConvention = Microsoft.AspNet.OData.Routing.Conventions.IODataRoutingConvention;
 using ODataPath = Microsoft.AspNet.OData.Routing.ODataPath;
 using Microsoft.AspNetCore.Mvc.Abstractions;
+using Microsoft.OData.Edm;
 
 namespace Microsoft.AspNet.OData
 {
@@ -36,6 +37,11 @@ namespace Microsoft.AspNet.OData
         {
             totalCountSet = false;
         }
+
+        /// <summary>
+        /// Gets or sets the OData path.
+        /// </summary>
+        public IEdmModel Model { get; set; }
 
         /// <summary>
         /// Gets or sets the OData path.

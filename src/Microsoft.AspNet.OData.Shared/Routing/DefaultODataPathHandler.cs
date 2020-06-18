@@ -8,6 +8,7 @@ using System.Diagnostics.Contracts;
 using System.Linq;
 using Microsoft.AspNet.OData.Common;
 using Microsoft.AspNet.OData.Routing.Template;
+using Microsoft.AspNetCore.OData.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.OData;
 using Microsoft.OData.Edm;
@@ -100,6 +101,13 @@ namespace Microsoft.AspNet.OData.Routing
             ODataUriParser uriParser;
             Uri serviceRootUri = null;
             Uri fullUri = null;
+
+            //IEdmModel model = requestContainer.GetRequiredService<ODataModelFactory>().Model;
+            //if (model == null)
+            //{
+            //    model = requestContainer.GetRequiredService<IEdmModel>();
+            //}
+
             IEdmModel model = requestContainer.GetRequiredService<IEdmModel>();
             if (template)
             {

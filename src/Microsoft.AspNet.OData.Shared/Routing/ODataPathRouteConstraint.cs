@@ -97,8 +97,9 @@ namespace Microsoft.AspNet.OData.Routing
                 IODataPathHandler pathHandler = requestContainer.GetRequiredService<IODataPathHandler>();
                 path = pathHandler.Parse(serviceRoot, oDataPathAndQuery, requestContainer);
             }
-            catch (ODataException)
+            catch (ODataException ex)
             {
+                Console.WriteLine(ex.Message);
                 path = null;
             }
 

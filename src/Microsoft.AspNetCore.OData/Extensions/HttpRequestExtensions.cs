@@ -108,6 +108,12 @@ namespace Microsoft.AspNet.OData.Extensions
                 throw Error.ArgumentNull("request");
             }
 
+            IODataFeature feature = request.ODataFeature();
+            if (feature.Model != null)
+            {
+                return feature.Model;
+            }
+
             return request.GetRequestContainer().GetRequiredService<IEdmModel>();
         }
 

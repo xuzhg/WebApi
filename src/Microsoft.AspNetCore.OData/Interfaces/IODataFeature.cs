@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Abstractions;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.OData.Edm;
 using Microsoft.OData.UriParser;
 using Microsoft.OData.UriParser.Aggregation;
 using IODataRoutingConvention = Microsoft.AspNet.OData.Routing.Conventions.IODataRoutingConvention;
@@ -19,6 +20,11 @@ namespace Microsoft.AspNet.OData.Interfaces
     /// </summary>
     public interface IODataFeature
     {
+        /// <summary>
+        /// 
+        /// </summary>
+        IEdmModel Model { get; set; }
+
         /// <summary>
         /// Gets or sets the OData path.
         /// </summary>
