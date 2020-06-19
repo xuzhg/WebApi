@@ -2,7 +2,6 @@
 using Microsoft.AspNet.OData;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ApplicationModels;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.OData.Edm;
 using System;
 using System.Collections.Generic;
@@ -14,7 +13,7 @@ namespace Microsoft.AspNetCore.OData.Routing
     /// <summary>
     /// 
     /// </summary>
-    public class PropertyEndpointConvention : NavigationSourceEndpointConvention
+    public class NavigationEndpointConvention : NavigationSourceEndpointConvention
     {
         /// <summary>
         /// 
@@ -71,13 +70,7 @@ namespace Microsoft.AspNetCore.OData.Routing
             IEdmSingleton singleton = NavigationSource as IEdmSingleton;
             if (singleton != null && hasKeyParameter)
             {
-                // Singleton, doesn't allow to query property with key
-                return false;
-            }
-
-            if (singleton == null && !hasKeyParameter)
-            {
-                // in entityset, doesn't allow for non-key to query property
+                // Singleton, don't allow for the keys
                 return false;
             }
 

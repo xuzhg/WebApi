@@ -47,6 +47,15 @@ namespace Microsoft.AspNetCore.OData.Routing
             }
         }
 
+        public ODataTemplate Clone()
+        {
+            IList<MyODataSegment> newSegmes = new List<MyODataSegment>(this._segments);
+            return new ODataTemplate(newSegmes)
+            {
+                KeyAsSegment = this.KeyAsSegment
+            };
+        }
+
         public ODataPath GenerateODataPath(IEdmModel model, RouteValueDictionary routeValue, QueryString queryString)
         {
             // calculate every time
@@ -116,6 +125,12 @@ namespace Microsoft.AspNetCore.OData.Routing
                 return previous; // for property, return the previous, or return null????
             }
 
+            MetadataSegment metadata = segment as MetadataSegment;
+            if (metadata != null)
+            {
+                return null;
+            }
+
             throw new Exception("Not supported segment in endpoint routing convention!");
         }
 
@@ -161,6 +176,19 @@ namespace Microsoft.AspNetCore.OData.Routing
 
         public abstract ODataPathSegment ProcessRouteValue(IEdmModel model, IEdmNavigationSource previous, RouteValueDictionary routeValue, QueryString queryString);
     }
+
+    internal class MyMetadataSegment : MyODataSegment
+    {
+        public static MyMetadataSegment Instance = new MyMetadataSegment();
+
+        public override string Template => "$metadata";
+
+        public override ODataPathSegment ProcessRouteValue(IEdmModel model, IEdmNavigationSource previous, RouteValueDictionary routeValue, QueryString queryString)
+        {
+            return MetadataSegment.Instance;
+        }
+    }
+
 
     internal class MyNavigationSourceSegment : MyODataSegment
     {

@@ -10,23 +10,12 @@ namespace Microsoft.AspNetCore.OData.Routing
     /// <summary>
     /// 
     /// </summary>
-    public class EntitySetRoutingConventionProvider : IODataControllerActionConvention
+    public class EntitySetEndpointConvention : NavigationSourceEndpointConvention
     {
         /// <summary>
         /// 
         /// </summary>
-        public int Order => -1000 + 100;
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="prefix"></param>
-        /// <param name="model"></param>
-        /// <param name="controller"></param>
-        public bool AppliesToController(string prefix, IEdmModel model, ControllerModel controller)
-        {
-            return true;
-        }
+        public override int Order => -1000 + 100;
 
         /// <summary>
         /// 
@@ -34,7 +23,7 @@ namespace Microsoft.AspNetCore.OData.Routing
         /// <param name="prefix"></param>
         /// <param name="model"></param>
         /// <param name="action"></param>
-        public bool AppliesToAction(string prefix, IEdmModel model, ActionModel action)
+        public override bool AppliesToAction(string prefix, IEdmModel model, ActionModel action)
         {
             if (model.EntityContainer == null)
             {
@@ -42,7 +31,7 @@ namespace Microsoft.AspNetCore.OData.Routing
             }
 
             string controllerName = action.Controller.ControllerName;
-            IEdmEntitySet entitySet = model.EntityContainer.FindEntitySet(controllerName);
+            IEdmEntitySet entitySet = NavigationSource as IEdmEntitySet;
             if (entitySet == null)
             {
                 return false;

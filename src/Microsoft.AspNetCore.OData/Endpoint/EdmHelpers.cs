@@ -15,6 +15,43 @@ namespace Microsoft.AspNetCore.OData.Routing
     /// </summary>
     internal static class EdmHelpers
     {
+        public static T GetAttribute<T>(this ControllerModel controller)
+        {
+            if (controller == null)
+            {
+                throw new ArgumentNullException(nameof(controller));
+            }
+
+            T value = controller.Attributes.OfType<T>().FirstOrDefault();
+            return value;
+        }
+
+        public static T GetAttribute<T>(this ActionModel action)
+        {
+            if (action == null)
+            {
+                throw new ArgumentNullException(nameof(action));
+            }
+
+            T value = action.Attributes.OfType<T>().FirstOrDefault();
+            return value;
+        }
+
+        public static void AddSelector(this ActionModel action, string prefix, IEdmModel model, ODataTemplate template)
+        {
+            SelectorModel selectorModel = action.Selectors.FirstOrDefault(s => s.AttributeRouteModel == null);
+            if (selectorModel == null)
+            {
+                selectorModel = new SelectorModel();
+                action.Selectors.Add(selectorModel);
+            }
+
+            string templateStr = string.IsNullOrEmpty(prefix) ? template.Template : $"{prefix}/{template.Template}";
+
+            selectorModel.AttributeRouteModel = new AttributeRouteModel(new RouteAttribute(templateStr) { Name = templateStr });
+            selectorModel.EndpointMetadata.Add(new ODataEndpointMetadata(prefix, model, template));
+        }
+
         public static IEnumerable<IEdmStructuredType> BaseTypes(
             this IEdmStructuredType structuralType)
         {

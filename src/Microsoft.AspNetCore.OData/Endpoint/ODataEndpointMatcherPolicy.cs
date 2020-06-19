@@ -95,12 +95,12 @@ namespace Microsoft.AspNetCore.OData.Routing
                     odata.ODataPath = oPath;
 
                     candidates.SetValidity(i, true);
-                    break;
+                    continue;
                 }
                 else
                 {
                     candidates.SetValidity(i, false);
-                    break;
+                    continue;
                 }
 
                 /*

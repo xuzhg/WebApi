@@ -54,6 +54,8 @@ namespace ODataRoutingSample.Controllers
             .ToArray();
         }
 
+       
+
         [HttpGet]
         public bool CanMoveToAddress(int key, [FromODataUri]Address address)
         {
@@ -64,6 +66,12 @@ namespace ODataRoutingSample.Controllers
         public string GetProperty(int key, string property)
         {
             return $"{property} in order";
+        }
+
+        [HttpGet]
+        public string GetTitle(int key)
+        {
+            return "Orders Title";
         }
     }
 

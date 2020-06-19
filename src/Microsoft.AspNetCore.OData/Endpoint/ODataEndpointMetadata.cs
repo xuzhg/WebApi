@@ -19,6 +19,13 @@ namespace Microsoft.AspNetCore.OData.Routing
             Template = template;
         }
 
+        public ODataEndpointMetadata(string prefix, IEdmModel model, string template)
+        {
+            Prefix = prefix;
+            Model = model;
+            TemplateStr = template;
+        }
+
         public ODataEndpointMetadata(string prefix, IEdmModel model, IDictionary<string, string> parameterMappings,
             Func<RouteValueDictionary, IDictionary<string, string>, ODataPath> odataPathFactory)
         {
@@ -35,6 +42,8 @@ namespace Microsoft.AspNetCore.OData.Routing
         public IDictionary<string, string> ParameterMappings { get; }
 
         public Func<RouteValueDictionary, IDictionary<string, string>, ODataPath> ODataPathFactory { get; }
+
+        public string TemplateStr { get; }
 
         public ODataTemplate Template { get; }
 

@@ -89,7 +89,7 @@ namespace Microsoft.AspNetCore.OData.Routing
 
         private static bool CanApply(string prefix, ControllerModel controller)
         {
-            ODataModelAttribute odataModel = GetAttribute<ODataModelAttribute>(controller);
+            ODataModelAttribute odataModel = controller.GetAttribute<ODataModelAttribute>();
             if (odataModel == null)
             {
                 return true; // apply to all model
@@ -130,17 +130,6 @@ namespace Microsoft.AspNetCore.OData.Routing
             }
 
             return false;
-        }
-
-        public static T GetAttribute<T>(ControllerModel controller)
-        {
-            if (controller == null)
-            {
-                throw new ArgumentNullException(nameof(controller));
-            }
-
-            T value = controller.Attributes.OfType<T>().FirstOrDefault();
-            return value;
         }
 
         internal IEnumerable<IODataControllerActionConvention> GetConventions(string prefix)
@@ -191,8 +180,9 @@ namespace Microsoft.AspNetCore.OData.Routing
             IList<IODataControllerActionConvention> conventions = new List<IODataControllerActionConvention>
             {
                 new MetadataEndpointConvention(),
+                new EntitySetEndpointConvention(),
                 new SingletonEndpointConvention(),
-                //   new EntitySetRoutingConvention(),
+                new EntityEndpointConvention(),
                 new OperationImportEndpointConvention(),
                 new OperationEndpointConvention(),
                 new PropertyEndpointConvention()
