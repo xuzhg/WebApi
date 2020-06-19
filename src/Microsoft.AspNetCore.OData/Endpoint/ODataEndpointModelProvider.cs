@@ -194,7 +194,8 @@ namespace Microsoft.AspNetCore.OData.Routing
                 new SingletonEndpointConvention(),
                 //   new EntitySetRoutingConvention(),
                 new OperationImportEndpointConvention(),
-                new OperationEndpointConvention()
+                new OperationEndpointConvention(),
+                new PropertyEndpointConvention()
             };
 
             builder.AddService(Microsoft.OData.ServiceLifetime.Singleton, sp => conventions.AsEnumerable());

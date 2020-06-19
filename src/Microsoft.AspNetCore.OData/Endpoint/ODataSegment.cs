@@ -55,14 +55,19 @@ namespace Microsoft.AspNetCore.OData.Routing
             foreach (var segment in _segments)
             {
                 ODataPathSegment odataSegment = segment.ProcessRouteValue(model, previousNavigationSource, routeValue, queryString);
+                if (odataSegment == null)
+                {
+                    return null;
+                }
+
                 oSegments.Add(odataSegment);
-                previousNavigationSource = GetTargetNavigationSource(odataSegment);
+                previousNavigationSource = GetTargetNavigationSource(previousNavigationSource, odataSegment);
             }
 
             return new ODataPath(oSegments);
         }
 
-        private static IEdmNavigationSource GetTargetNavigationSource(ODataPathSegment segment)
+        private static IEdmNavigationSource GetTargetNavigationSource(IEdmNavigationSource previous, ODataPathSegment segment)
         {
             if (segment == null)
             {
@@ -103,6 +108,12 @@ namespace Microsoft.AspNetCore.OData.Routing
             if (import != null)
             {
                 return import.EntitySet;
+            }
+
+            PropertySegment property = segment as PropertySegment;
+            if (property != null)
+            {
+                return previous; // for property, return the previous, or return null????
             }
 
             throw new Exception("Not supported segment in endpoint routing convention!");
@@ -411,6 +422,50 @@ namespace Microsoft.AspNetCore.OData.Routing
             }
 
             return new OperationSegment(Action, targetset as IEdmEntitySetBase);
+        }
+    }
+
+    internal class MyPropertySegment : MyODataSegment
+    {
+        public override string Template => Property.Name;
+
+        public MyPropertySegment(IEdmStructuralProperty property)
+        {
+            Property = property;
+        }
+
+        public IEdmStructuralProperty Property { get; }
+
+        public override ODataPathSegment ProcessRouteValue(IEdmModel model, IEdmNavigationSource previous, RouteValueDictionary routeValue, QueryString queryString)
+        {
+            return new PropertySegment(Property);
+        }
+    }
+
+    internal class MyPropertyTemplateSegment : MyODataSegment
+    {
+        public override string Template => "{property}";
+
+        public MyPropertyTemplateSegment(IEdmStructuredType declaredType)
+        {
+            StructuredType = declaredType;
+        }
+
+        public IEdmStructuredType StructuredType { get; }
+
+        public override ODataPathSegment ProcessRouteValue(IEdmModel model, IEdmNavigationSource previous, RouteValueDictionary routeValue, QueryString queryString)
+        {
+            if (routeValue.TryGetValue("property", out object value))
+            {
+                string rawValue = value as string;
+                IEdmProperty edmProperty = StructuredType.FindProperty(rawValue);
+                if (edmProperty != null && edmProperty.PropertyKind == EdmPropertyKind.Structural)
+                {
+                    return new PropertySegment((IEdmStructuralProperty)edmProperty);
+                }
+            }
+
+            return null;
         }
     }
 

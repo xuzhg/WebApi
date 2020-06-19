@@ -59,6 +59,12 @@ namespace ODataRoutingSample.Controllers
         {
             return true;
         }
+
+        [HttpGet]
+        public string GetProperty(int key, string property)
+        {
+            return $"{property} in order";
+        }
     }
 
 
@@ -69,6 +75,12 @@ namespace ODataRoutingSample.Controllers
         public Order Get()
         {
             return new Order { Id = 9, Title = "Singleton Title" };
+        }
+
+        [HttpGet]
+        public string GetTitleFromOrder()
+        {
+            return "Singleton Title";
         }
     }
 }

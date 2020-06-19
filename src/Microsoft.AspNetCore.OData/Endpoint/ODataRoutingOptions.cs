@@ -88,7 +88,7 @@ namespace Microsoft.AspNetCore.OData.Routing
         public ODataRoutingOptions AddConvention(IODataControllerActionConvention convention)
         {
             Conventions.Add(convention);
-            return null;
+            return this;
         }
     }
 

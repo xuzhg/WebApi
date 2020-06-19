@@ -97,8 +97,13 @@ namespace Microsoft.AspNetCore.OData.Routing
                     candidates.SetValidity(i, true);
                     break;
                 }
+                else
+                {
+                    candidates.SetValidity(i, false);
+                    break;
+                }
 
-
+                /*
                 string oDataPathValue = GetODataRouteInfo(originalValues);
                 HttpRequest request = httpContext.Request;
 
@@ -127,7 +132,7 @@ namespace Microsoft.AspNetCore.OData.Routing
                 {
                     candidates.ReplaceEndpoint(i, newEndpoint, newValues);
                 }
-
+                */
                 Task EndpointWithODataPath(HttpContext httpContext)
                 {
                     var odataPath = oDataMetadata.ODataPathFactory(httpContext.GetRouteData().Values, oDataMetadata.ParameterMappings);

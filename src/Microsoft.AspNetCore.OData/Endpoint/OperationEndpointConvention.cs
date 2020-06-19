@@ -62,7 +62,7 @@ namespace Microsoft.AspNetCore.OData.Routing
             }
 
             IEdmSingleton singleton = model.EntityContainer.FindSingleton(controllerName);
-            if (entitySet != null)
+            if (singleton != null)
             {
                 NavigationSource = singleton;
                 return true;
@@ -132,8 +132,8 @@ namespace Microsoft.AspNetCore.OData.Routing
                         action.Selectors.Add(selectorModel);
                     }
 
-                    string templateStr = template.Template;
-                    selectorModel.AttributeRouteModel = new AttributeRouteModel(new RouteAttribute(templateStr) { Name = prefix });
+                    string templateStr = string.IsNullOrEmpty(prefix) ? template.Template : $"{prefix}/{template.Template}";
+                    selectorModel.AttributeRouteModel = new AttributeRouteModel(new RouteAttribute(templateStr) { Name = templateStr });
                     selectorModel.EndpointMetadata.Add(new ODataEndpointMetadata(prefix, model, template));
 
                     return true;
@@ -145,9 +145,9 @@ namespace Microsoft.AspNetCore.OData.Routing
             if (function != null)
             {
                 IList<MyODataSegment> segments = new List<MyODataSegment>
-                    {
-                        new MyNavigationSourceSegment(NavigationSource)
-                    };
+                {
+                    new MyNavigationSourceSegment(NavigationSource)
+                };
                 if (hasKeyParameter)
                 {
                     segments.Add(new MyKeyTemplate(entityType, NavigationSource));
@@ -165,7 +165,7 @@ namespace Microsoft.AspNetCore.OData.Routing
 
                 string templateStr = string.IsNullOrEmpty(prefix) ? template.Template : $"{prefix}/{template.Template}";
 
-                selectorModel.AttributeRouteModel = new AttributeRouteModel(new RouteAttribute(templateStr) { Name = prefix });
+                selectorModel.AttributeRouteModel = new AttributeRouteModel(new RouteAttribute(templateStr) { Name = templateStr });
                 selectorModel.EndpointMetadata.Add(new ODataEndpointMetadata(prefix, model, template));
 
                 return true;
@@ -227,26 +227,6 @@ namespace Microsoft.AspNetCore.OData.Routing
             }
 
             return null;
-        }
-
-        private static IDictionary<string, string> ConstructFunctionParameters(IEdmFunctionImport functionImport)
-        {
-            IEdmFunction function = functionImport.Function;
-
-            int skip = 0;
-            if (function.IsBound)
-            {
-                // Function import should not be a bound, here for safety. Need Double confirm with 
-                skip = 1;
-            }
-
-            IDictionary<string, string> parameterMappings = new Dictionary<string, string>();
-            foreach (var parameter in function.Parameters.Skip(skip))
-            {
-                parameterMappings[parameter.Name] = $"{{{parameter.Name}}}";
-            }
-
-            return parameterMappings;
         }
     }
 }
