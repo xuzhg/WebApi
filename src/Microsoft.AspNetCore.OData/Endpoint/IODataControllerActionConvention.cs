@@ -11,8 +11,16 @@ using System.Reflection;
 
 namespace Microsoft.AspNetCore.OData.Routing
 {
-    internal class ODataControllerContext
+    /// <summary>
+    /// 
+    /// </summary>
+    public class ODataControllerContext
     {
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="prefix"></param>
+        /// <param name="model"></param>
         internal ODataControllerContext(string prefix, IEdmModel model)
         {
             Prefix = prefix;
@@ -30,15 +38,26 @@ namespace Microsoft.AspNetCore.OData.Routing
             Singleton = singleton;
         }
 
-
+        /// <summary>
+        /// 
+        /// </summary>
         public string Prefix { get; }
 
+        /// <summary>
+        /// 
+        /// </summary>
         public IEdmModel Model { get; }
 
         //public bool IsDone { get; set; }
 
+        /// <summary>
+        /// 
+        /// </summary>
         public IEdmEntitySet EntitySet { get; }
 
+        /// <summary>
+        /// 
+        /// </summary>
         public IEdmSingleton Singleton { get; }
 
         // for others extra information
@@ -123,19 +142,17 @@ namespace Microsoft.AspNetCore.OData.Routing
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="prefix"></param>
-        /// <param name="model"></param>
+        /// <param name="context"></param>
         /// <param name="controller"></param>
         /// <returns></returns>
-        bool AppliesToController(string prefix, IEdmModel model, ControllerModel controller);
+        bool AppliesToController(ODataControllerContext context, ControllerModel controller);
 
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="prefix"></param>
-        /// <param name="model"></param>
+        /// <param name="context"></param>
         /// <param name="action"></param>
-        bool AppliesToAction(string prefix, IEdmModel model, ActionModel action);
+        bool AppliesToAction(ODataControllerContext context, ActionModel action);
     }
 
     internal interface IODataActionConvention
@@ -179,7 +196,7 @@ namespace Microsoft.AspNetCore.OData.Routing
         void AppliesToAction(string prefix, IEdmModel model, ActionModel action);
     }
 
-    interface class DefaultODataEndpointConventionProvider : IODataEndpointConventionProvider
+    internal class DefaultODataEndpointConventionProvider : IODataEndpointConventionProvider
     {
         private readonly IODataActionConvention[] _actionConventions;
 
@@ -208,21 +225,6 @@ namespace Microsoft.AspNetCore.OData.Routing
                 return false;
             }
 
-            string controllerName = controller.ControllerName;
-            IEdmEntitySet entitySet = model.EntityContainer.FindEntitySet(controllerName);
-            if (entitySet != null)
-            {
-                NavigationSource = entitySet;
-                return true;
-            }
-
-            IEdmSingleton singleton = model.EntityContainer.FindSingleton(controllerName);
-            if (singleton != null)
-            {
-                NavigationSource = singleton;
-                return true;
-            }
-
             return false;
         }
 
@@ -230,7 +232,5 @@ namespace Microsoft.AspNetCore.OData.Routing
         {
             throw new System.NotImplementedException();
         }
-
-        
     }
 }

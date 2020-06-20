@@ -23,16 +23,15 @@ namespace Microsoft.AspNetCore.OData.Routing
         /// <summary>
         /// 
         /// </summary>
-        public int Order => -1000 + 100;
+        public virtual int Order => -100;
 
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="prefix"></param>
-        /// <param name="model"></param>
+        /// <param name="context"></param>
         /// <param name="controller"></param>
         /// <returns></returns>
-        public bool AppliesToController(string prefix, IEdmModel model, ControllerModel controller)
+        public virtual bool AppliesToController(ODataControllerContext context, ControllerModel controller)
         {
             // Apply to all controllers
             return true;
@@ -41,14 +40,13 @@ namespace Microsoft.AspNetCore.OData.Routing
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="prefix"></param>
-        /// <param name="model"></param>
+        /// <param name="context"></param>
         /// <param name="action"></param>
-        public bool AppliesToAction(string prefix, IEdmModel model, ActionModel action)
+        public virtual bool AppliesToAction(ODataControllerContext context, ActionModel action)
         {
-            if (model == null)
+            if (context == null)
             {
-                throw new ArgumentNullException(nameof(model));
+                throw new ArgumentNullException(nameof(context));
             }
 
             if (action == null)
@@ -61,6 +59,8 @@ namespace Microsoft.AspNetCore.OData.Routing
             {
                 return false;
             }
+            string prefix = context.Prefix;
+            IEdmModel model = context.Model;
 
             string routeTemplate = "";
             ODataRoutePrefixAttribute prefixAttr = action.Controller.GetAttribute<ODataRoutePrefixAttribute>();

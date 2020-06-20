@@ -1,47 +1,57 @@
 #if !NETSTANDARD2_0
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.ApplicationModels;
-using Microsoft.OData.Edm;
-using Microsoft.OData.UriParser;
+using System;
 using System.Collections.Generic;
 using System.Linq;
+using Microsoft.AspNetCore.Mvc.ApplicationModels;
+using Microsoft.OData.Edm;
 
 namespace Microsoft.AspNetCore.OData.Routing
 {
     /// <summary>
     /// 
     /// </summary>
-    public class EntityEndpointConvention : NavigationSourceEndpointConvention
+    public class EntityEndpointConvention : IODataControllerActionConvention
     {
         /// <summary>
         /// 
         /// </summary>
-        public override int Order => -1000 + 100;
+        public int Order => 300;
 
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="prefix"></param>
-        /// <param name="model"></param>
-        /// <param name="action"></param>
-        public override bool AppliesToAction(string prefix, IEdmModel model, ActionModel action)
+        /// <param name="context"></param>
+        /// <param name="controller"></param>
+        /// <returns></returns>
+        public virtual bool AppliesToController(ODataControllerContext context, ControllerModel controller)
         {
-            if (model.EntityContainer == null)
+            return context?.EntitySet != null;
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="context"></param>
+        /// <param name="action"></param>
+        public virtual bool AppliesToAction(ODataControllerContext context, ActionModel action)
+        {
+            if (context == null)
             {
+                throw new ArgumentNullException(nameof(context));
+            }
+
+            if (action == null)
+            {
+                throw new ArgumentNullException(nameof(action));
+            }
+
+            if (context.EntitySet == null || action.Parameters.Count < 1)
+            {
+                // At lease one parameter for the key.
                 return false;
             }
 
-            IEdmEntitySet entitySet = NavigationSource as IEdmEntitySet;
-            if (entitySet == null)
-            {
-                return false;
-            }
-
-            if (action.Parameters.Count < 1)
-            {
-                return false;
-            }
-
+            IEdmEntitySet entitySet = context.EntitySet;
             var entityType = entitySet.EntityType();
             var entityTypeName = entitySet.EntityType().Name;
             var keys = entitySet.EntityType().Key().ToArray();
@@ -59,37 +69,22 @@ namespace Microsoft.AspNetCore.OData.Routing
             {
                 IList<MyODataSegment> segments = new List<MyODataSegment>
                 {
-                        new MyNavigationSourceSegment(NavigationSource),
-                        new MyKeyTemplate(entityType, NavigationSource)
+                        new MyNavigationSourceSegment(entitySet),
+                        new MyKeyTemplate(entityType, entitySet)
                 };
                 ODataTemplate template = new ODataTemplate(segments);
 
                 // support key in parenthesis
-                AddSelector(prefix, model, action, template);
+                action.AddSelector(context.Prefix, context.Model, template);
 
                 // support key as segment
                 ODataTemplate newTemplate = template.Clone();
                 newTemplate.KeyAsSegment = true;
-                AddSelector(prefix, model, action, newTemplate);
+                action.AddSelector(context.Prefix, context.Model, newTemplate);
                 return true;
             }
 
             return false;
-        }
-
-        static void AddSelector(string prefix, IEdmModel model, ActionModel action, ODataTemplate template)
-        {
-            SelectorModel selectorModel = action.Selectors.FirstOrDefault(s => s.AttributeRouteModel == null);
-            if (selectorModel == null)
-            {
-                selectorModel = new SelectorModel();
-                action.Selectors.Add(selectorModel);
-            }
-
-            string templateStr = string.IsNullOrEmpty(prefix) ? template.Template : $"{prefix}/{template.Template}";
-
-            selectorModel.AttributeRouteModel = new AttributeRouteModel(new RouteAttribute(templateStr) { Name = templateStr });
-            selectorModel.EndpointMetadata.Add(new ODataEndpointMetadata(prefix, model, template));
         }
     }
 }

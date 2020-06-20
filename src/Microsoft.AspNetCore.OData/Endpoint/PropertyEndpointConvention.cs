@@ -1,12 +1,8 @@
 #if !NETSTANDARD2_0
-using Microsoft.AspNet.OData;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ApplicationModels;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.OData.Edm;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 
 namespace Microsoft.AspNetCore.OData.Routing
@@ -14,24 +10,35 @@ namespace Microsoft.AspNetCore.OData.Routing
     /// <summary>
     /// 
     /// </summary>
-    public class PropertyEndpointConvention : NavigationSourceEndpointConvention
+    public class PropertyEndpointConvention : IODataControllerActionConvention
     {
         /// <summary>
         /// 
         /// </summary>
-        public override int Order => -1000 + 400;
+        public virtual int Order => 400;
 
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="prefix"></param>
-        /// <param name="model"></param>
-        /// <param name="action"></param>
-        public override bool AppliesToAction(string prefix, IEdmModel model, ActionModel action)
+        /// <param name="context"></param>
+        /// <param name="controller"></param>
+        /// <returns></returns>
+        public virtual bool AppliesToController(ODataControllerContext context, ControllerModel controller)
         {
-            if (model == null)
+            // structural property supports for entity set and singleton
+            return context?.EntitySet != null || context?.Singleton != null;
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="context"></param>
+        /// <param name="action"></param>
+        public virtual bool AppliesToAction(ODataControllerContext context, ActionModel action)
+        {
+            if (context == null)
             {
-                throw new ArgumentNullException(nameof(model));
+                throw new ArgumentNullException(nameof(context));
             }
 
             if (action == null)
@@ -39,8 +46,13 @@ namespace Microsoft.AspNetCore.OData.Routing
                 throw new ArgumentNullException(nameof(action));
             }
 
-            Debug.Assert(NavigationSource != null);
-            
+            if (context.EntitySet == null && context.Singleton == null)
+            {
+                return false;
+            }
+            IEdmNavigationSource navigationSource = context.EntitySet == null ?
+                (IEdmNavigationSource)context.Singleton :
+                (IEdmNavigationSource)context.EntitySet;
 
             string actionName = action.ActionMethod.Name;
 
@@ -50,8 +62,9 @@ namespace Microsoft.AspNetCore.OData.Routing
                 return false;
             }
 
-            IEdmEntityType entityType = NavigationSource.EntityType();
-
+            IEdmEntityType entityType = navigationSource.EntityType();
+            IEdmModel model = context.Model;
+            string prefix = context.Prefix;
             IEdmEntityType declaredEntityType = null;
             if (declared != null)
             {
@@ -68,7 +81,7 @@ namespace Microsoft.AspNetCore.OData.Routing
             }
 
             bool hasKeyParameter = HasKeyParameter(entityType, action);
-            IEdmSingleton singleton = NavigationSource as IEdmSingleton;
+            IEdmSingleton singleton = navigationSource as IEdmSingleton;
             if (singleton != null && hasKeyParameter)
             {
                 // Singleton, doesn't allow to query property with key
@@ -107,31 +120,21 @@ namespace Microsoft.AspNetCore.OData.Routing
 
                 IList<MyODataSegment> segments = new List<MyODataSegment>
                 {
-                    new MyNavigationSourceSegment(NavigationSource)
+                    new MyNavigationSourceSegment(navigationSource)
                 };
                 if (hasKeyParameter)
                 {
-                    segments.Add(new MyKeyTemplate(entityType, NavigationSource));
+                    segments.Add(new MyKeyTemplate(entityType, navigationSource));
                 }
                 if (declaredEntityType != null && declaredEntityType != entityType)
                 {
-                    segments.Add(new MyCastSegment(declaredEntityType, NavigationSource));
+                    segments.Add(new MyCastSegment(declaredEntityType, navigationSource));
                 }
 
                 segments.Add(new MyPropertySegment((IEdmStructuralProperty)edmProperty));
 
                 ODataTemplate template = new ODataTemplate(segments);
-
-                SelectorModel selectorModel = action.Selectors.FirstOrDefault(s => s.AttributeRouteModel == null);
-                if (selectorModel == null)
-                {
-                    selectorModel = new SelectorModel();
-                    action.Selectors.Add(selectorModel);
-                }
-
-                string templateStr = string.IsNullOrEmpty(prefix) ? template.Template : $"{prefix}/{template.Template}";
-                selectorModel.AttributeRouteModel = new AttributeRouteModel(new RouteAttribute(templateStr) { Name = templateStr });
-                selectorModel.EndpointMetadata.Add(new ODataEndpointMetadata(prefix, model, template));
+                action.AddSelector(prefix, model, template);
                 return true;
             }
             else
@@ -145,31 +148,21 @@ namespace Microsoft.AspNetCore.OData.Routing
                         // we find a action route
                         IList<MyODataSegment> segments = new List<MyODataSegment>
                         {
-                            new MyNavigationSourceSegment(NavigationSource)
+                            new MyNavigationSourceSegment(navigationSource)
                         };
                         if (hasKeyParameter)
                         {
-                            segments.Add(new MyKeyTemplate(entityType, NavigationSource));
+                            segments.Add(new MyKeyTemplate(entityType, navigationSource));
                         }
                         if (declaredEntityType != null)
                         {
-                            segments.Add(new MyCastSegment(declaredEntityType, NavigationSource));
+                            segments.Add(new MyCastSegment(declaredEntityType, navigationSource));
                         }
 
                         segments.Add(new MyPropertyTemplateSegment(entityType));
 
                         ODataTemplate template = new ODataTemplate(segments);
-
-                        SelectorModel selectorModel = action.Selectors.FirstOrDefault(s => s.AttributeRouteModel == null);
-                        if (selectorModel == null)
-                        {
-                            selectorModel = new SelectorModel();
-                            action.Selectors.Add(selectorModel);
-                        }
-
-                        string templateStr = string.IsNullOrEmpty(prefix) ? template.Template : $"{prefix}/{template.Template}";
-                        selectorModel.AttributeRouteModel = new AttributeRouteModel(new RouteAttribute(templateStr) { Name = templateStr });
-                        selectorModel.EndpointMetadata.Add(new ODataEndpointMetadata(prefix, model, template));
+                        action.AddSelector(prefix, model, template);
                         return true;
                     }
                 }

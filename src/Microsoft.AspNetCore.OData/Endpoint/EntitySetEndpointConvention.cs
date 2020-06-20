@@ -1,44 +1,58 @@
 #if !NETSTANDARD2_0
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ApplicationModels;
 using Microsoft.OData.Edm;
-using Microsoft.OData.UriParser;
-using System.Linq;
+using System;
 
 namespace Microsoft.AspNetCore.OData.Routing
 {
     /// <summary>
     /// 
     /// </summary>
-    public class EntitySetEndpointConvention : NavigationSourceEndpointConvention
+    public class EntitySetEndpointConvention : IODataControllerActionConvention
     {
         /// <summary>
         /// 
         /// </summary>
-        public override int Order => -1000 + 100;
+        public virtual int Order => 200;
 
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="prefix"></param>
-        /// <param name="model"></param>
-        /// <param name="action"></param>
-        public override bool AppliesToAction(string prefix, IEdmModel model, ActionModel action)
+        /// <param name="context"></param>
+        /// <param name="controller"></param>
+        /// <returns></returns>
+        public virtual bool AppliesToController(ODataControllerContext context, ControllerModel controller)
         {
-            if (model.EntityContainer == null)
+            return context?.EntitySet != null;
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="context"></param>
+        /// <param name="action"></param>
+        public virtual bool AppliesToAction(ODataControllerContext context, ActionModel action)
+        {
+            if (context == null)
+            {
+                throw new ArgumentNullException(nameof(context));
+            }
+
+            if (action == null)
+            {
+                throw new ArgumentNullException(nameof(action));
+            }
+
+            if (context.EntitySet == null)
             {
                 return false;
             }
 
-            string controllerName = action.Controller.ControllerName;
-            IEdmEntitySet entitySet = NavigationSource as IEdmEntitySet;
-            if (entitySet == null)
-            {
-                return false;
-            }
+            IEdmEntitySet entitySet = context.EntitySet;
 
             if (action.Parameters.Count != 0)
             {
+                // TODO: improve here to accept other parameters, for example ODataQueryOptions<T>
                 return false;
             }
 
@@ -47,46 +61,19 @@ namespace Microsoft.AspNetCore.OData.Routing
             if (actionName == "Get" ||
                 actionName == $"Get{entitySet.Name}")
             {
-                var template = string.IsNullOrEmpty(prefix) ? entitySet.Name : $"{prefix}/{entitySet.Name}";
+                ODataTemplate template = new ODataTemplate(new MyEntitySetSegment(entitySet));
+                action.AddSelector(context.Prefix, context.Model, template);
 
-                SelectorModel selectorModel = action.Selectors.FirstOrDefault(s => s.AttributeRouteModel == null);
-                if (selectorModel == null)
-                {
-                    selectorModel = new SelectorModel();
-                    action.Selectors.Add(selectorModel);
-                }
-
-                selectorModel.AttributeRouteModel = new AttributeRouteModel(new RouteAttribute(template) { Name = template });
-                selectorModel.EndpointMetadata.Add(new ODataEndpointMetadata(prefix, model, null, (_, __) => new ODataPath(new EntitySetSegment(entitySet))));
-
-                //// $count
-                template = string.IsNullOrEmpty(prefix) ? $"{entitySet.Name}/$count" : $"{prefix}/{entitySet.Name}/$count";
-                selectorModel = action.Selectors.FirstOrDefault(s => s.AttributeRouteModel == null);
-                if (selectorModel == null)
-                {
-                    selectorModel = new SelectorModel();
-                    action.Selectors.Add(selectorModel);
-                }
-
-                selectorModel.AttributeRouteModel = new AttributeRouteModel(new RouteAttribute(template) { Name = template });
-                selectorModel.EndpointMetadata.Add(new ODataEndpointMetadata(prefix, model, null, (_, __) => new ODataPath(new EntitySetSegment(entitySet), CountSegment.Instance)));
+                // $count
+                template = new ODataTemplate(new MyEntitySetSegment(entitySet), MyCountSegment.Instance);
+                action.AddSelector(context.Prefix, context.Model, template);
                 return true;
             }
             else if (actionName == "Post" ||
                 actionName == $"Post{entitySet.EntityType().Name}")
             {
-                var template = string.IsNullOrEmpty(prefix) ? entitySet.Name : $"{prefix}/{entitySet.Name}";
-
-                SelectorModel selectorModel = action.Selectors.FirstOrDefault(s => s.AttributeRouteModel == null);
-                if (selectorModel == null)
-                {
-                    selectorModel = new SelectorModel();
-                    action.Selectors.Add(selectorModel);
-                }
-
-                selectorModel.AttributeRouteModel = new AttributeRouteModel(new RouteAttribute(template) { Name = template });
-                selectorModel.EndpointMetadata.Add(new ODataEndpointMetadata(prefix, model, null, (_, __) => new ODataPath(new EntitySetSegment(entitySet))));
-
+                ODataTemplate template = new ODataTemplate(new MyEntitySetSegment(entitySet));
+                action.AddSelector(context.Prefix, context.Model, template);
                 return true;
             }
             else

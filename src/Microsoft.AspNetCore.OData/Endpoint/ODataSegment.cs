@@ -131,6 +131,18 @@ namespace Microsoft.AspNetCore.OData.Routing
                 return null;
             }
 
+            CountSegment count = segment as CountSegment;
+            if (count != null)
+            {
+                return null;
+            }
+
+            OperationImportSegment operationImport = segment as OperationImportSegment;
+            if (operationImport != null)
+            {
+                return null;
+            }
+
             throw new Exception("Not supported segment in endpoint routing convention!");
         }
 
@@ -186,6 +198,18 @@ namespace Microsoft.AspNetCore.OData.Routing
         public override ODataPathSegment ProcessRouteValue(IEdmModel model, IEdmNavigationSource previous, RouteValueDictionary routeValue, QueryString queryString)
         {
             return MetadataSegment.Instance;
+        }
+    }
+
+    internal class MyCountSegment : MyODataSegment
+    {
+        public static MyCountSegment Instance = new MyCountSegment();
+
+        public override string Template => "$count";
+
+        public override ODataPathSegment ProcessRouteValue(IEdmModel model, IEdmNavigationSource previous, RouteValueDictionary routeValue, QueryString queryString)
+        {
+            return CountSegment.Instance;
         }
     }
 
@@ -419,6 +443,84 @@ namespace Microsoft.AspNetCore.OData.Routing
         }
     }
 
+    internal class MyFunctionImportSegment : MyODataSegment
+    {
+        public override string Template { get; }
+
+        public MyFunctionImportSegment(IEdmFunctionImport function)
+        {
+            Function = function;
+
+            IDictionary<string, string> keyMappings = new Dictionary<string, string>();
+            foreach (var parameter in function.Function.Parameters)
+            {
+                keyMappings[parameter.Name] = $"{{{parameter.Name}}}";
+            }
+
+            Template = function.Name + "(" + string.Join(",", keyMappings.Select(a => $"{a.Key}={a.Value}")) + ")";
+        }
+
+        public IEdmFunctionImport Function { get; }
+
+        public IDictionary<string, (string, IEdmTypeReference)> ParameterMappings { get; } = new Dictionary<string, (string, IEdmTypeReference)>();
+
+        public IEdmNavigationSource NavigationSource { get; }
+
+        public override ODataPathSegment ProcessRouteValue(IEdmModel model, IEdmNavigationSource previous, RouteValueDictionary routeValue, QueryString queryString)
+        {
+            // TODO: process the parameter alias
+            IList<OperationSegmentParameter> parameters = new List<OperationSegmentParameter>();
+            foreach (var parameter in Function.Function.Parameters)
+            {
+                if (routeValue.TryGetValue(parameter.Name, out object rawValue))
+                {
+                    // for resource or collection resource, this method will return "ODataResourceValue, ..." we should support it.
+                    if (IsResourceOrCollectionResource(parameter.Type))
+                    {
+                        // For FromODataUri
+                        string prefixName = ODataParameterValue.ParameterValuePrefix + parameter.Name;
+                        routeValue[prefixName] = new ODataParameterValue(rawValue, parameter.Type);
+
+                        parameters.Add(new OperationSegmentParameter(parameter.Name, rawValue));
+                    }
+                    else
+                    {
+                        string strValue = rawValue as string;
+                        object newValue = ODataUriUtils.ConvertFromUriLiteral(strValue, ODataVersion.V4, model, parameter.Type);
+
+                        // for without FromODataUri, so update it, for example, remove the single quote for string value.
+                        routeValue[parameter.Name] = newValue;
+
+                        // For FromODataUri
+                        string prefixName = ODataParameterValue.ParameterValuePrefix + parameter.Name;
+                        routeValue[prefixName] = new ODataParameterValue(newValue, parameter.Type);
+
+                        parameters.Add(new OperationSegmentParameter(parameter.Name, newValue));
+                    }
+                }
+            }
+
+            IEdmNavigationSource targetset = null; // todo
+
+            return new OperationImportSegment(Function, targetset as IEdmEntitySetBase, parameters);
+        }
+
+        private static bool IsResourceOrCollectionResource(IEdmTypeReference edmType)
+        {
+            if (edmType.IsEntity() || edmType.IsComplex())
+            {
+                return true;
+            }
+
+            if (edmType.IsCollection())
+            {
+                return IsResourceOrCollectionResource(edmType.AsCollection().ElementType());
+            }
+
+            return false;
+        }
+    }
+
     internal class MyActionSegment : MyODataSegment
     {
         public override string Template { get; }
@@ -450,6 +552,24 @@ namespace Microsoft.AspNetCore.OData.Routing
             }
 
             return new OperationSegment(Action, targetset as IEdmEntitySetBase);
+        }
+    }
+
+    internal class MyActionImportSegment : MyODataSegment
+    {
+        public override string Template { get; }
+
+        public MyActionImportSegment(IEdmActionImport action)
+        {
+            Action = action;
+            Template = action.Name;
+        }
+
+        public IEdmActionImport Action { get; }
+
+        public override ODataPathSegment ProcessRouteValue(IEdmModel model, IEdmNavigationSource previous, RouteValueDictionary routeValue, QueryString queryString)
+        {
+            return new OperationImportSegment(Action, null);
         }
     }
 

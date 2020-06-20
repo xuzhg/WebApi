@@ -17,52 +17,29 @@ namespace Microsoft.AspNetCore.OData.Routing
         /// <summary>
         /// 
         /// </summary>
-        public int Order => -1000 + 100;
-
-        /// <summary>
-        /// used for cache
-        /// </summary>
-        internal IEdmSingleton Singleton { get; private set; }
+        public virtual int Order => 200;
 
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="prefix"></param>
-        /// <param name="model"></param>
+        /// <param name="context"></param>
         /// <param name="controller"></param>
         /// <returns></returns>
-        public bool AppliesToController(string prefix, IEdmModel model, ControllerModel controller)
+        public virtual bool AppliesToController(ODataControllerContext context, ControllerModel controller)
         {
-            if (model == null)
-            {
-                throw new ArgumentNullException(nameof(model));
-            }
-
-            if (controller == null)
-            {
-                throw new ArgumentNullException(nameof(controller));
-            }
-
-            string controllerName = controller.ControllerName;
-            IEdmSingleton singleton = model.EntityContainer?.FindSingleton(controllerName);
-
-            // Cached the singleton, because we call this method first, then AppliesToAction
-            // FindSingleton maybe time consuming.
-            Singleton = singleton;
-            return singleton != null;
+            return context?.Singleton != null;
         }
 
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="prefix"></param>
-        /// <param name="model"></param>
+        /// <param name="context"></param>
         /// <param name="action"></param>
-        public bool AppliesToAction(string prefix, IEdmModel model, ActionModel action)
+        public bool AppliesToAction(ODataControllerContext context, ActionModel action)
         {
-            if (model == null)
+            if (context == null)
             {
-                throw new ArgumentNullException(nameof(model));
+                throw new ArgumentNullException(nameof(context));
             }
 
             if (action == null)
@@ -71,23 +48,16 @@ namespace Microsoft.AspNetCore.OData.Routing
             }
 
             // use the cached
-            Debug.Assert(Singleton != null);
-            string singletonName = Singleton.Name;
+            Debug.Assert(context.Singleton != null);
+            string singletonName = context.Singleton.Name;
+            string prefix = context.Prefix;
+            IEdmModel model = context.Model;
 
             string actionMethodName = action.ActionMethod.Name;
             if (IsSupportedActionName(actionMethodName, singletonName))
             {
-                var template = string.IsNullOrEmpty(prefix) ? singletonName : $"{prefix}/{singletonName}";
-
-                SelectorModel selectorModel = action.Selectors.FirstOrDefault(s => s.AttributeRouteModel == null);
-                if (selectorModel == null)
-                {
-                    selectorModel = new SelectorModel();
-                    action.Selectors.Add(selectorModel);
-                }
-
-                selectorModel.AttributeRouteModel = new AttributeRouteModel(new RouteAttribute(template) { Name = template });
-                selectorModel.EndpointMetadata.Add(new ODataEndpointMetadata(prefix, model, null, (_, __) => new ODataPath(new SingletonSegment(Singleton))));
+                ODataTemplate template = new ODataTemplate(new MySingletonSegment(context.Singleton));
+                action.AddSelector(context.Prefix, context.Model, template);
 
                 // processed
                 return true;
@@ -104,7 +74,7 @@ namespace Microsoft.AspNetCore.OData.Routing
             string actionPrefix = actionMethodName.Substring(0, index);
             if (IsSupportedActionName(actionPrefix, singletonName))
             {
-                IEdmEntityType entityType = Singleton.EntityType();
+                IEdmEntityType entityType = context.Singleton.EntityType();
                 string castTypeName = actionMethodName.Substring(index + 4);
 
                 // Shall we cast to base type and the type itself? I think yes.
@@ -113,7 +83,10 @@ namespace Microsoft.AspNetCore.OData.Routing
                 {
                     if (baseType.Name == castTypeName)
                     {
-                        AddSelector(prefix, model, action, Singleton, baseType);
+                        ODataTemplate template = new ODataTemplate(new MySingletonSegment(context.Singleton),
+                            new MyCastSegment(baseType, context.Singleton));
+                        action.AddSelector(context.Prefix, context.Model, template);
+
                         return true;
                     }
 
@@ -124,30 +97,15 @@ namespace Microsoft.AspNetCore.OData.Routing
                 IEdmEntityType castType = model.FindAllDerivedTypes(entityType).OfType<IEdmEntityType>().FirstOrDefault(c => c.Name == castTypeName);
                 if (castType != null)
                 {
-                    AddSelector(prefix, model, action, Singleton, castType);
+                    ODataTemplate template = new ODataTemplate(new MySingletonSegment(context.Singleton),
+                        new MyCastSegment(castType, context.Singleton));
+                    action.AddSelector(context.Prefix, context.Model, template);
+
                     return true;
                 }
             }
 
             return false;
-        }
-
-        private static void AddSelector(string prefix, IEdmModel model, ActionModel action, IEdmSingleton singleton, IEdmEntityType castType)
-        {
-            SelectorModel selectorModel = action.Selectors.FirstOrDefault(s => s.AttributeRouteModel == null);
-            if (selectorModel == null)
-            {
-                selectorModel = new SelectorModel();
-                action.Selectors.Add(selectorModel);
-            }
-
-            // Me/Namespace.VipUser
-            string template = $"{singleton.Name}/{castType.FullTypeName()}";
-            selectorModel.AttributeRouteModel = new AttributeRouteModel(new RouteAttribute(template) { Name = template });
-            selectorModel.EndpointMetadata.Add(
-                new ODataEndpointMetadata(prefix, model, null, (_, __) => new ODataPath(
-                    new SingletonSegment(singleton),
-                    new TypeSegment(castType, singleton.EntityType(), singleton))));
         }
 
         private static bool IsSupportedActionName(string actionName, string singletonName)

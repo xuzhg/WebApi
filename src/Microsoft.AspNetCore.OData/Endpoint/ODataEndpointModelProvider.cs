@@ -62,20 +62,39 @@ namespace Microsoft.AspNetCore.OData.Routing
                     //
 
                     // Get conventions for all this controller
+                    // Get conventions for all this controller
+                    ODataControllerContext odataContext = BuildContext(route.Key, model, controller);
 
-                    foreach (var convention in conventions)
+                    IODataControllerActionConvention[] newConventions =
+                        conventions.Where(c => c.AppliesToController(odataContext, controller)).ToArray();
+
+                    if (newConventions.Length > 0)
                     {
-                        if (convention.AppliesToController(route.Key, route.Value, controller))
+                        foreach (var action in controller.Actions)
                         {
-                            foreach (var action in controller.Actions)
+                            foreach (var con in newConventions)
                             {
-                                if (convention.AppliesToAction(route.Key, route.Value, action))
+                                if (con.AppliesToAction(odataContext, action))
                                 {
-                                    ;
+                                    break;
                                 }
                             }
                         }
                     }
+
+                    //foreach (var convention in conventions)
+                    //{
+                    //    if (convention.AppliesToController(route.Key, route.Value, controller))
+                    //    {
+                    //        foreach (var action in controller.Actions)
+                    //        {
+                    //            if (convention.AppliesToAction(route.Key, route.Value, action))
+                    //            {
+                    //                ;
+                    //            }
+                    //        }
+                    //    }
+                    //}
                 }
             }
 
@@ -85,6 +104,27 @@ namespace Microsoft.AspNetCore.OData.Routing
         public void OnProvidersExecuting(ApplicationModelProviderContext context)
         {
             Console.WriteLine("OnProvidersExecuting");
+        }
+
+        private static ODataControllerContext BuildContext(string prefix, IEdmModel model, ControllerModel controller)
+        {
+            // The reason why it's better to create a context is that:
+            // We don't need to call te FindEntitySet or FindSingleton in every convention
+            string controllerName = controller.ControllerName;
+
+            IEdmEntitySet entitySet = model.EntityContainer.FindEntitySet(controllerName);
+            if (entitySet == null)
+            {
+                return new ODataControllerContext(prefix, model, entitySet);
+            }
+
+            IEdmSingleton singleton = model.EntityContainer.FindSingleton(controllerName);
+            if (singleton != null)
+            {
+                return new ODataControllerContext(prefix, model, singleton);
+            }
+
+            return new ODataControllerContext(prefix, model);
         }
 
         private static bool CanApply(string prefix, ControllerModel controller)

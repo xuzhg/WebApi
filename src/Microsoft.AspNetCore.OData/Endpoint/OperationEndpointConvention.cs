@@ -22,66 +22,30 @@ namespace Microsoft.AspNetCore.OData.Routing
         /// <summary>
         /// 
         /// </summary>
-        public int Order => -1000 + 100;
-
-        /// <summary>
-        /// used for cache
-        /// </summary>
-        internal IEdmNavigationSource NavigationSource { get; private set; }
+        public virtual int Order => 600;
 
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="prefix"></param>
-        /// <param name="model"></param>
+        /// <param name="context"></param>
         /// <param name="controller"></param>
         /// <returns></returns>
-        public bool AppliesToController(string prefix, IEdmModel model, ControllerModel controller)
+        public virtual bool AppliesToController(ODataControllerContext context, ControllerModel controller)
         {
-            if (model == null)
-            {
-                throw new ArgumentNullException(nameof(model));
-            }
-
-            if (controller == null)
-            {
-                throw new ArgumentNullException(nameof(controller));
-            }
-
-            if (model.EntityContainer == null)
-            {
-                return false;
-            }
-
-            string controllerName = controller.ControllerName;
-            IEdmEntitySet entitySet = model.EntityContainer.FindEntitySet(controllerName);
-            if (entitySet != null)
-            {
-                NavigationSource = entitySet;
-                return true;
-            }
-
-            IEdmSingleton singleton = model.EntityContainer.FindSingleton(controllerName);
-            if (singleton != null)
-            {
-                NavigationSource = singleton;
-                return true;
-            }
-
-            return false;
+            // bound operation supports for entity set and singleton
+            return context?.EntitySet != null || context?.Singleton != null;
         }
 
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="prefix"></param>
-        /// <param name="model"></param>
+        /// <param name="context"></param>
         /// <param name="action"></param>
-        public bool AppliesToAction(string prefix, IEdmModel model, ActionModel action)
+        public virtual bool AppliesToAction(ODataControllerContext context, ActionModel action)
         {
-            if (model == null)
+            if (context == null)
             {
-                throw new ArgumentNullException(nameof(model));
+                throw new ArgumentNullException(nameof(context));
             }
 
             if (action == null)
@@ -89,9 +53,17 @@ namespace Microsoft.AspNetCore.OData.Routing
                 throw new ArgumentNullException(nameof(action));
             }
 
-            Debug.Assert(NavigationSource != null);
+            if (context.EntitySet == null && context.Singleton == null)
+            {
+                return false;
+            }
+            IEdmNavigationSource navigationSource = context.EntitySet == null ?
+                (IEdmNavigationSource)context.Singleton :
+                (IEdmNavigationSource)context.EntitySet;
 
-            IEdmEntityType entityType = NavigationSource.EntityType();
+            IEdmModel model = context.Model;
+            string prefix = context.Prefix;
+            IEdmEntityType entityType = navigationSource.EntityType();
             bool hasKeyParameter = HasKeyParameter(entityType, action);
 
             // found
@@ -115,27 +87,17 @@ namespace Microsoft.AspNetCore.OData.Routing
                     // we find a action route
                     IList<MyODataSegment> segments = new List<MyODataSegment>
                     {
-                        new MyNavigationSourceSegment(NavigationSource)
+                        new MyNavigationSourceSegment(navigationSource)
                     };
                     if (hasKeyParameter)
                     {
-                        segments.Add(new MyKeyTemplate(entityType, NavigationSource));
+                        segments.Add(new MyKeyTemplate(entityType, navigationSource));
                     }
-                    segments.Add(new MyActionSegment(actions[0], NavigationSource, false));
+                    segments.Add(new MyActionSegment(actions[0], navigationSource, false));
 
                     ODataTemplate template = new ODataTemplate(segments);
 
-                    SelectorModel selectorModel = action.Selectors.FirstOrDefault(s => s.AttributeRouteModel == null);
-                    if (selectorModel == null)
-                    {
-                        selectorModel = new SelectorModel();
-                        action.Selectors.Add(selectorModel);
-                    }
-
-                    string templateStr = string.IsNullOrEmpty(prefix) ? template.Template : $"{prefix}/{template.Template}";
-                    selectorModel.AttributeRouteModel = new AttributeRouteModel(new RouteAttribute(templateStr) { Name = templateStr });
-                    selectorModel.EndpointMetadata.Add(new ODataEndpointMetadata(prefix, model, template));
-
+                    action.AddSelector(prefix, model, template);
                     return true;
                 }
             }
@@ -146,28 +108,17 @@ namespace Microsoft.AspNetCore.OData.Routing
             {
                 IList<MyODataSegment> segments = new List<MyODataSegment>
                 {
-                    new MyNavigationSourceSegment(NavigationSource)
+                    new MyNavigationSourceSegment(navigationSource)
                 };
                 if (hasKeyParameter)
                 {
-                    segments.Add(new MyKeyTemplate(entityType, NavigationSource));
+                    segments.Add(new MyKeyTemplate(entityType, navigationSource));
                 }
-                segments.Add(new MyFunctionSegment(function, NavigationSource, false));
+                segments.Add(new MyFunctionSegment(function, navigationSource, false));
 
                 ODataTemplate template = new ODataTemplate(segments);
 
-                SelectorModel selectorModel = action.Selectors.FirstOrDefault(s => s.AttributeRouteModel == null);
-                if (selectorModel == null)
-                {
-                    selectorModel = new SelectorModel();
-                    action.Selectors.Add(selectorModel);
-                }
-
-                string templateStr = string.IsNullOrEmpty(prefix) ? template.Template : $"{prefix}/{template.Template}";
-
-                selectorModel.AttributeRouteModel = new AttributeRouteModel(new RouteAttribute(templateStr) { Name = templateStr });
-                selectorModel.EndpointMetadata.Add(new ODataEndpointMetadata(prefix, model, template));
-
+                action.AddSelector(prefix, model, template);
                 return true;
             }
 
